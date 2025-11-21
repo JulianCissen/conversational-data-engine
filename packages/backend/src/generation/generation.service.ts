@@ -53,9 +53,9 @@ export class GenerationService {
     userQuestion: string,
   ): Promise<string> {
     const systemPrompt =
-      'You are a helpful assistant. The user has a question about the form. Answer their question based ONLY on the provided context, then politely re-ask the original question.';
+      'You are a helpful assistant. The user has a question about the form. Answer their question based ONLY on the provided context, then politely re-ask the original form question. Do NOT repeat the user\'s question - instead, re-ask the field question from the form.';
 
-    const userMessage = `The current field is '${field.questionTemplate}'. The Context is: '${field.aiContext}'. The user asked: '${userQuestion}'.`;
+    const userMessage = `The current field is '${field.questionTemplate}'. The Context is: '${field.aiContext}'. The user asked: '${userQuestion}'. After answering, re-ask: '${field.questionTemplate}'.`;
 
     return await this.aiService.chat(systemPrompt, userMessage);
   }

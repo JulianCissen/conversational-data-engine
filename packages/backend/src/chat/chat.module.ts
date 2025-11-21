@@ -6,6 +6,7 @@ import { Session } from '../session/session.entity';
 import { OrchestratorModule } from '../orchestrator/orchestrator.module';
 import { ExtractionModule } from '../extraction/extraction.module';
 import { GenerationModule } from '../generation/generation.module';
+import { IntentModule } from '../intent/intent.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { GenerationModule } from '../generation/generation.module';
     OrchestratorModule,
     ExtractionModule,
     GenerationModule,
+    IntentModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],
