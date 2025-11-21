@@ -31,7 +31,7 @@ export class ChatService {
   async handleMessage(
     sessionId: string | undefined,
     userText: string,
-  ): Promise<{ sessionId: string; text: string; isComplete: boolean }> {
+  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     const session = await this.getOrCreateSession(sessionId);
     
     // Handle new session initialization
@@ -60,7 +60,7 @@ export class ChatService {
     session: Session,
     userText: string,
     currentField: any,
-  ): Promise<{ sessionId: string; text: string; isComplete: boolean }> {
+  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     const responseText = await this.generationService.generateContextualResponse(
       currentField,
       userText,
@@ -70,6 +70,7 @@ export class ChatService {
       sessionId: session.id,
       text: responseText,
       isComplete: false,
+      data: session.data,
     };
   }
 
@@ -81,7 +82,7 @@ export class ChatService {
     session: Session,
     userText: string,
     currentField: any,
-  ): Promise<{ sessionId: string; text: string; isComplete: boolean }> {
+  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     // Extract data from user's message
     const extractedData = await this.extractionService.extractData(
       [currentField],
@@ -104,6 +105,7 @@ export class ChatService {
         sessionId: session.id,
         text: errorResponse,
         isComplete: false,
+        data: session.data,
       };
     }
     
@@ -123,6 +125,7 @@ export class ChatService {
       sessionId: session.id,
       text: responseText,
       isComplete: nextStep.isComplete,
+      data: session.data,
     };
   }
 
@@ -172,7 +175,7 @@ export class ChatService {
    */
   private async initializeNewSession(
     session: Session,
-  ): Promise<{ sessionId: string; text: string; isComplete: boolean }> {
+  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     const nextStep = this.orchestratorService.determineNextStep(
       this.blueprint,
       session.data,
@@ -189,6 +192,7 @@ export class ChatService {
         sessionId: session.id,
         text: questionText,
         isComplete: false,
+        data: session.data,
       };
     }
     

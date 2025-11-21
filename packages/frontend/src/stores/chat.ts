@@ -13,6 +13,7 @@ export interface ChatResponse {
   sessionId: string
   text: string
   isComplete: boolean
+  data: Record<string, any>
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -20,6 +21,7 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<Message[]>([])
   const sessionId = ref<string | null>(null)
   const isLoading = ref<boolean>(false)
+  const currentFormData = ref<Record<string, any>>({})
   
   let messageIdCounter = 1
 
@@ -49,6 +51,9 @@ export const useChatStore = defineStore('chat', () => {
 
       // Update sessionId from response
       sessionId.value = response.data.sessionId
+
+      // Update current form data
+      currentFormData.value = response.data.data || {}
 
       // Add AI response to state
       const aiMessage: Message = {
@@ -83,6 +88,7 @@ export const useChatStore = defineStore('chat', () => {
   function clearChat() {
     messages.value = []
     sessionId.value = null
+    currentFormData.value = {}
     messageIdCounter = 1
   }
 
@@ -91,6 +97,7 @@ export const useChatStore = defineStore('chat', () => {
     messages,
     sessionId,
     isLoading,
+    currentFormData,
     
     // Actions
     sendMessage,

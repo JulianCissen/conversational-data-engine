@@ -10,6 +10,7 @@ export class ChatResponseDto {
   sessionId: string;
   text: string;
   isComplete: boolean;
+  data: Record<string, any>;
 }
 
 @Controller('chat')
