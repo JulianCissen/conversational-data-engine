@@ -11,10 +11,10 @@
       </v-card-text>
     </v-card>
     
-    <!-- AI message without bubble -->
+    <!-- AI message without bubble, with markdown rendering -->
     <div v-else class="ai-message-content">
       <div class="message-text">
-        {{ text }}
+        <MarkdownText :text="text" />
       </div>
     </div>
   </div>
@@ -22,6 +22,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import MarkdownText from '../common/MarkdownText.vue'
 
 interface Props {
   text: string
