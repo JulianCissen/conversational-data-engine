@@ -1,0 +1,68 @@
+{
+  "id": "travel_expense",
+  "name": "Travel Expense Request",
+  "fields": [
+    {
+      "id": "transport_type",
+      "type": "string",
+      "questionTemplate": "What type of transport will you be using?",
+      "aiContext": "The user needs to select their mode of transportation. Valid options are 'car' or 'train'. This determines whether we need to collect license plate information.",
+      "validation": {
+        "type": "string",
+        "enum": ["car", "train"],
+        "description": "Type of transportation"
+      }
+    },
+    {
+      "id": "age",
+      "type": "number",
+      "questionTemplate": "What is your age?",
+      "aiContext": "We need to verify the user's age to determine if parental consent is required. Users under 18 must provide additional consent documentation.",
+      "validation": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 120,
+        "description": "User's age in years"
+      }
+    },
+    {
+      "id": "parental_consent",
+      "type": "boolean",
+      "questionTemplate": "Do you have parental consent for this travel expense?",
+      "aiContext": "This field is only shown for users under 18 years old. It confirms that a parent or guardian has approved the travel request.",
+      "validation": {
+        "type": "boolean",
+        "const": true,
+        "description": "Parental consent is required for minors"
+      },
+      "condition": {
+        "<": [
+          { "var": "age" },
+          18
+        ]
+      }
+    },
+    {
+      "id": "license_plate",
+      "type": "string",
+      "questionTemplate": "What is your vehicle's license plate number?",
+      "aiContext": "This field is only required when the user selects 'car' as their transport type. It's used for vehicle verification and expense tracking.",
+      "validation": {
+        "type": "string",
+        "pattern": "^[A-Z0-9]{2,10}$",
+        "description": "Vehicle license plate (alphanumeric, 2-10 characters)"
+      },
+      "condition": {
+        "==": [
+          { "var": "transport_type" },
+          "car"
+        ]
+      }
+    }
+  ],
+  "plugins": [],
+  "hooks": {
+    "onStart": [],
+    "onSubmit": []
+  }
+}
