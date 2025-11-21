@@ -1,8 +1,6 @@
 <template>
   <v-app>
-    <v-main>
-      <HelloWorld />
-    </v-main>
+    <router-view />
   </v-app>
 </template>
 
