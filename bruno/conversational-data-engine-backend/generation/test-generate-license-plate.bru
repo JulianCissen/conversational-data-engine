@@ -1,0 +1,28 @@
+meta {
+  name: test-generate-license-plate
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://localhost:3000/generation/test
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "ask",
+    "field": {
+      "id": "license_plate",
+      "type": "string",
+      "questionTemplate": "What is your vehicle's license plate number?",
+      "aiContext": "This field is only required when the user selects 'car' as their transport type. It's used for vehicle verification and expense tracking.",
+      "validation": {
+        "type": "string",
+        "pattern": "^[A-Z0-9]{2,10}$",
+        "description": "Vehicle license plate (alphanumeric, 2-10 characters)"
+      }
+    }
+  }
+}

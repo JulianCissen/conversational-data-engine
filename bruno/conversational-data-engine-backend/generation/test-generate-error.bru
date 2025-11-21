@@ -1,0 +1,31 @@
+meta {
+  name: test-generate-error
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:3000/generation/test
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "error",
+    "field": {
+      "id": "age",
+      "type": "number",
+      "questionTemplate": "What is your age?",
+      "aiContext": "We need to verify the user's age to determine if parental consent is required. Users under 18 must provide additional consent documentation.",
+      "validation": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 120,
+        "description": "User's age in years"
+      }
+    },
+    "invalidInput": "two hundred",
+    "errorReason": "Expected a numeric value between 0 and 120, but received a text string that cannot be converted to a valid number"
+  }
+}

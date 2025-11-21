@@ -1,0 +1,29 @@
+meta {
+  name: test-generate-context
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:3000/generation/test
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "context",
+    "field": {
+      "id": "parental_consent",
+      "type": "boolean",
+      "questionTemplate": "Do you have parental consent for this travel expense?",
+      "aiContext": "This field is only shown for users under 18 years old. It confirms that a parent or guardian has approved the travel request.",
+      "validation": {
+        "type": "boolean",
+        "const": true,
+        "description": "Parental consent is required for minors"
+      }
+    },
+    "userQuestion": "Why do you need parental consent?"
+  }
+}
