@@ -5,7 +5,7 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 
 @Injectable()
 export class AiService {
-  private readonly chatModel: ChatOpenAI;
+  private readonly _chatModel: ChatOpenAI;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('LLM_API_KEY');
@@ -18,7 +18,7 @@ export class AiService {
       );
     }
 
-    this.chatModel = new ChatOpenAI({
+    this._chatModel = new ChatOpenAI({
       apiKey,
       configuration: {
         baseURL,
@@ -28,13 +28,20 @@ export class AiService {
     });
   }
 
+  /**
+   * Public getter for the chat model to allow structured output usage
+   */
+  get chatModel(): ChatOpenAI {
+    return this._chatModel;
+  }
+
   async chat(systemPrompt: string, userMessage: string): Promise<string> {
     const messages = [
       new SystemMessage(systemPrompt),
       new HumanMessage(userMessage),
     ];
 
-    const response = await this.chatModel.invoke(messages);
+    const response = await this._chatModel.invoke(messages);
     return response.content as string;
   }
 }
