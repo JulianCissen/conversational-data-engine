@@ -18,4 +18,8 @@ export class Session {
 
   @Property()
   status: 'COLLECTING' | 'COMPLETED' = 'COLLECTING';
+
+  // Track which field the user is currently answering
+  @Property({ nullable: true })
+  currentFieldId?: string;
 }

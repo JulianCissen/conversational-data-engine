@@ -5,76 +5,45 @@
       <div class="messages-wrapper">
         <div class="messages-content">
           <MessageBubble
-            v-for="message in messages"
+            v-for="message in chatStore.messages"
             :key="message.id"
             :text="message.text"
             :is-user="message.isUser"
             :timestamp="message.timestamp"
           />
+          
+          <!-- Loading indicator -->
+          <div v-if="chatStore.isLoading" class="loading-container">
+            <v-progress-circular
+              indeterminate
+              color="primary"
+              size="32"
+            />
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Chat Input -->
-    <ChatInput @send="handleSendMessage" />
+    <ChatInput @send="handleSendMessage" :disabled="chatStore.isLoading" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, watch, onMounted } from 'vue'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
+import { useChatStore } from '@/stores/chat'
 
-interface Message {
-  id: number
-  text: string
-  isUser: boolean
-  timestamp: Date
-}
-
-const messages = ref<Message[]>([
-  {
-    id: 1,
-    text: 'Hello! I\'m your Form Assistant. I can help you fill out forms and answer questions. How can I assist you today?',
-    isUser: false,
-    timestamp: new Date(Date.now() - 120000) // 2 minutes ago
-  },
-  {
-    id: 2,
-    text: 'Hi! I need help filling out a travel authorization form.',
-    isUser: true,
-    timestamp: new Date(Date.now() - 60000) // 1 minute ago
-  }
-])
-
+const chatStore = useChatStore()
 const messagesContainer = ref<HTMLElement | null>(null)
-let messageIdCounter = 3
 
 const handleSendMessage = async (text: string) => {
-  // Add user message
-  messages.value.push({
-    id: messageIdCounter++,
-    text,
-    isUser: true,
-    timestamp: new Date()
-  })
-
-  // Scroll to bottom
+  await chatStore.sendMessage(text)
+  
+  // Scroll to bottom after message is added
   await nextTick()
   scrollToBottom()
-
-  // Simulate AI response after a short delay
-  setTimeout(async () => {
-    messages.value.push({
-      id: messageIdCounter++,
-      text: 'I understand you need help with a travel authorization form. I\'ll guide you through the process. Let\'s start with some basic information.',
-      isUser: false,
-      timestamp: new Date()
-    })
-
-    await nextTick()
-    scrollToBottom()
-  }, 1000)
 }
 
 const scrollToBottom = () => {
@@ -82,6 +51,21 @@ const scrollToBottom = () => {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
   }
 }
+
+// Watch for new messages and scroll to bottom
+watch(() => chatStore.messages.length, async () => {
+  await nextTick()
+  scrollToBottom()
+})
+
+// Initialize with first message when component mounts
+onMounted(async () => {
+  if (chatStore.messages.length === 0) {
+    // Start a new conversation
+    await chatStore.sendMessage('Hello')
+  }
+  scrollToBottom()
+})
 </script>
 
 <style scoped>
@@ -117,6 +101,13 @@ const scrollToBottom = () => {
   padding-top: 32px;
   padding-bottom: 24px;
   min-height: min-content;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
 }
 
 /* Scrollbar styling */

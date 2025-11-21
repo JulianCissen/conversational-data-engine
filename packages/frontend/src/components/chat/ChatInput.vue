@@ -11,13 +11,14 @@
             variant="plain"
             density="comfortable"
             hide-details
+            :disabled="disabled"
             @keydown.enter.exact.prevent="handleSend"
             @keydown.enter.shift.exact="handleNewLine"
             class="message-input"
           ></v-textarea>
           <v-btn
             icon="mdi-send"
-            :disabled="!message.trim()"
+            :disabled="!message.trim() || disabled"
             @click="handleSend"
             size="default"
             variant="text"
@@ -36,6 +37,11 @@ const message = ref('')
 
 const emit = defineEmits<{
   send: [text: string]
+}>()
+
+// Props
+defineProps<{
+  disabled?: boolean
 }>()
 
 const handleSend = () => {

@@ -5,6 +5,7 @@ import config from './mikro-orm.config';
 import { AiModule } from './ai/ai.module';
 import { ExtractionModule } from './extraction/extraction.module';
 import { GenerationModule } from './generation/generation.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { GenerationModule } from './generation/generation.module';
     AiModule,
     ExtractionModule,
     GenerationModule,
+    ChatModule,
   ],
   controllers: [],
   providers: [],
