@@ -11,7 +11,6 @@
             variant="plain"
             density="comfortable"
             hide-details
-            :disabled="disabled"
             @keydown.enter.exact.prevent="handleSend"
             @keydown.enter.shift.exact="handleNewLine"
             class="message-input"
@@ -40,13 +39,13 @@ const emit = defineEmits<{
 }>()
 
 // Props
-defineProps<{
+const props = defineProps<{
   disabled?: boolean
 }>()
 
 const handleSend = () => {
   const trimmedMessage = message.value.trim()
-  if (trimmedMessage) {
+  if (trimmedMessage && !props.disabled) {
     emit('send', trimmedMessage)
     message.value = ''
   }
