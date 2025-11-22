@@ -126,9 +126,18 @@ const formattedData = computed(() => {
 </script>
 
 <style scoped>
-/* Ensure main takes full height */
+/* Ensure main takes full height and doesn't overflow */
 .v-main {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.v-main :deep(.v-main__wrap) {
+  display: flex;
+  flex-direction: column;
   height: 100%;
+  overflow: hidden;
 }
 
 .data-inspector-pre {

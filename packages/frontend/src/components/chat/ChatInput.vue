@@ -60,8 +60,6 @@ const handleNewLine = (event: KeyboardEvent) => {
 
 <style scoped>
 .chat-input-container {
-  position: sticky;
-  bottom: 0;
   padding: 24px 16px 32px;
   display: flex;
   justify-content: center;

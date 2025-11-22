@@ -2,30 +2,30 @@
   <div class="chat-view">
     <!-- Messages Container -->
     <div class="messages-container" ref="messagesContainer">
-      <div class="messages-wrapper">
-        <div class="messages-content">
-          <MessageBubble
-            v-for="message in chatStore.messages"
-            :key="message.id"
-            :text="message.text"
-            :is-user="message.isUser"
-            :timestamp="message.timestamp"
+      <div class="messages-content">
+        <MessageBubble
+          v-for="message in chatStore.messages"
+          :key="message.id"
+          :text="message.text"
+          :is-user="message.isUser"
+          :timestamp="message.timestamp"
+        />
+        
+        <!-- Loading indicator -->
+        <div v-if="chatStore.isLoading" class="loading-container">
+          <v-progress-circular
+            indeterminate
+            color="primary"
+            size="32"
           />
-          
-          <!-- Loading indicator -->
-          <div v-if="chatStore.isLoading" class="loading-container">
-            <v-progress-circular
-              indeterminate
-              color="primary"
-              size="32"
-            />
-          </div>
         </div>
       </div>
     </div>
 
     <!-- Chat Input -->
-    <ChatInput @send="handleSendMessage" :disabled="chatStore.isLoading" />
+    <div class="chat-input-wrapper">
+      <ChatInput @send="handleSendMessage" :disabled="chatStore.isLoading" />
+    </div>
   </div>
 </template>
 
@@ -73,7 +73,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-height: 100vh;
   overflow: hidden;
   background-color: #131314;
 }
@@ -82,15 +81,9 @@ onMounted(async () => {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.messages-wrapper {
-  flex: 1;
+  min-height: 0; /* Important: allows flex child to shrink below content size */
   display: flex;
   justify-content: center;
-  width: 100%;
 }
 
 .messages-content {
@@ -98,9 +91,12 @@ onMounted(async () => {
   max-width: 900px;
   display: flex;
   flex-direction: column;
-  padding-top: 32px;
-  padding-bottom: 24px;
-  min-height: min-content;
+  padding: 32px 16px 24px;
+}
+
+.chat-input-wrapper {
+  flex-shrink: 0;
+  background-color: #131314;
 }
 
 .loading-container {
