@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { AiService } from '../ai/ai.service';
+import { PromptService } from '../config/prompt.service';
 import { FieldDefinition, JsonSchema } from '../blueprint/interfaces/blueprint.interface';
 
 @Injectable()
 export class ExtractionService {
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    private readonly promptService: PromptService,
+  ) {}
 
   /**
    * Extracts structured data from unstructured user text based on the provided field definitions.
@@ -20,11 +24,8 @@ export class ExtractionService {
     // Construct the JSON Schema
     const jsonSchema = this.buildJsonSchema(fields);
 
-    // Prepare prompts
-    const systemPrompt =
-      'You are a data extraction engine. Extract data from the user\'s message into the provided JSON format. ' +
-      'Do not invent values. If a field is not mentioned, leave it out. ' +
-      'Return only valid JSON matching the schema.';
+    // Get system prompt from database
+    const systemPrompt = this.promptService.getPrompt('extraction.system');
 
     try {
       // Call the AI with structured output
