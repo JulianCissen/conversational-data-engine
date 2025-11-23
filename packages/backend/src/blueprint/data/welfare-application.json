@@ -1,0 +1,58 @@
+{
+  "id": "welfare_application",
+  "name": "Welfare Application (Participatiewet)",
+  "fields": [
+    {
+      "id": "reason",
+      "type": "string",
+      "questionTemplate": "Why are you applying for welfare?",
+      "aiContext": "We need to understand the reason why the applicant is requesting welfare benefits. This helps us determine eligibility and the appropriate type of support. Common reasons include unemployment, insufficient income, or inability to work due to health issues.",
+      "validation": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 1000,
+        "description": "Reason for applying for welfare benefits"
+      }
+    },
+    {
+      "id": "job_experience",
+      "type": "string",
+      "questionTemplate": "What job experience do you currently have?",
+      "aiContext": "Understanding the applicant's work history and skills is crucial for providing reintegration support. We want to know about previous jobs, skills acquired, and any relevant work experience that could help in finding future employment.",
+      "validation": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 2000,
+        "description": "Description of current job experience and skills"
+      }
+    },
+    {
+      "id": "assets_value",
+      "type": "number",
+      "questionTemplate": "What is the current total value of your assets?",
+      "aiContext": "To determine eligibility for welfare benefits, we need to assess the applicant's financial situation. This includes savings, property, vehicles, and other valuable assets. The value should be in Euros and represents the total current market value of all assets combined.",
+      "validation": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 999999999,
+        "description": "Total value of assets in Euros"
+      }
+    },
+    {
+      "id": "truthfulness_confirmation",
+      "type": "boolean",
+      "questionTemplate": "Did you answer all the questions truthfully?",
+      "aiContext": "This is a legal requirement. The applicant must confirm that all information provided is accurate and truthful. Providing false information may result in denial of benefits or legal consequences.",
+      "validation": {
+        "type": "boolean",
+        "const": true,
+        "description": "Confirmation that all answers are truthful (must be true)"
+      }
+    }
+  ],
+  "plugins": [],
+  "hooks": {
+    "onStart": [],
+    "onSubmit": []
+  }
+}
