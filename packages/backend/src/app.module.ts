@@ -8,6 +8,7 @@ import { TemplateModule } from './template/template.module';
 import { ExtractionModule } from './extraction/extraction.module';
 import { GenerationModule } from './generation/generation.module';
 import { ChatModule } from './chat/chat.module';
+import { BlueprintModule } from './blueprint/blueprint.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ChatModule } from './chat/chat.module';
     ConfigModule,
     TemplateModule,
     AiModule,
+    BlueprintModule,
     ExtractionModule,
     GenerationModule,
     ChatModule,

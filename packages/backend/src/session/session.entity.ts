@@ -22,4 +22,8 @@ export class Session {
   // Track which field the user is currently answering
   @Property({ nullable: true })
   currentFieldId?: string;
+
+  // Track which blueprint (service) the user has selected
+  @Property({ nullable: true })
+  blueprintId?: string;
 }

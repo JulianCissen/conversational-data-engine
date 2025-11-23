@@ -7,6 +7,7 @@ import { OrchestratorModule } from '../orchestrator/orchestrator.module';
 import { ExtractionModule } from '../extraction/extraction.module';
 import { GenerationModule } from '../generation/generation.module';
 import { IntentModule } from '../intent/intent.module';
+import { BlueprintModule } from '../blueprint/blueprint.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { IntentModule } from '../intent/intent.module';
     ExtractionModule,
     GenerationModule,
     IntentModule,
+    BlueprintModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],

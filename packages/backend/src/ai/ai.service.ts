@@ -24,7 +24,7 @@ export class AiService {
         baseURL,
       },
       modelName,
-      temperature: 0.2, // Deterministic behavior for form data
+      temperature: 0, // Deterministic behavior for form data
     });
   }
 

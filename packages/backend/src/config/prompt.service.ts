@@ -125,6 +125,40 @@ export class PromptService implements OnModuleInit {
         value:
           'The current field is \'{{questionTemplate}}\'. The Context is: \'{{aiContext}}\'. The user asked: \'{{userQuestion}}\'. After answering, re-ask: \'{{questionTemplate}}\'.',
       },
+      {
+        key: 'intent.classification.system',
+        value:
+          'You are an intent classifier for a conversational form system. ' +
+          'Your task is to determine if the user is:\n' +
+          '- ANSWER: Providing data/information to answer the current question\n' +
+          '- QUESTION: Asking a clarifying question about the form, the field, or why information is needed\n\n' +
+          'Respond with ONLY the word "ANSWER" or "QUESTION" - nothing else.',
+      },
+      {
+        key: 'intent.classification.user',
+        value:
+          'Current field being collected: "{{questionTemplate}}"\n' +
+          'Context: {{aiContext}}\n\n' +
+          'User\'s message: "{{userText}}"\n\n' +
+          'Is the user providing an ANSWER or asking a QUESTION?',
+      },
+      {
+        key: 'service.selection.system',
+        value:
+          'You are a service matcher for a conversational form system. ' +
+          'Your task is to determine which service the user wants to use based on their message.\n\n' +
+          'Available services:\n{{serviceList}}\n\n' +
+          'If the user is asking what services are available, respond with: LIST_SERVICES\n' +
+          'If the user clearly indicates a service, respond with ONLY the service ID (e.g., "travel_expense").\n' +
+          'If unclear, respond with: UNCLEAR\n\n' +
+          'Respond with ONLY one of: the service ID, "LIST_SERVICES", or "UNCLEAR" - nothing else.',
+      },
+      {
+        key: 'service.selection.user',
+        value:
+          'User\'s message: "{{userText}}"\n\n' +
+          'Which service does the user want?',
+      },
     ];
 
     for (const promptData of defaultPrompts) {

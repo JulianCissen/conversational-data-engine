@@ -7,13 +7,10 @@ import { ExtractionService } from '../extraction/extraction.service';
 import { GenerationService } from '../generation/generation.service';
 import { IntentService } from '../intent/intent.service';
 import { ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
-import * as sampleBlueprint from '../blueprint/data/sample-travel.json';
+import { BlueprintService } from '../blueprint/blueprint.service';
 
 @Injectable()
 export class ChatService {
-  // Load the blueprint (in production, this would come from a database)
-  private readonly blueprint: ServiceBlueprint = sampleBlueprint as ServiceBlueprint;
-
   constructor(
     @InjectRepository(Session)
     private readonly sessionRepository: EntityRepository<Session>,
@@ -22,6 +19,7 @@ export class ChatService {
     private readonly extractionService: ExtractionService,
     private readonly generationService: GenerationService,
     private readonly intentService: IntentService,
+    private readonly blueprintService: BlueprintService,
   ) {}
 
   /**
@@ -34,13 +32,22 @@ export class ChatService {
   ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     const session = await this.getOrCreateSession(sessionId);
     
-    // Handle new session initialization
+    // Handle new session initialization with service selection
     if (!sessionId) {
-      return await this.initializeNewSession(session);
+      return await this.initializeServiceSelection(session);
     }
 
+    // Check if service has been selected
+    if (!session.blueprintId) {
+      // User is in service selection phase
+      return await this.handleServiceSelection(session, userText);
+    }
+
+    // Service is selected - proceed with normal blueprint flow
+    const blueprint = this.blueprintService.getBlueprint(session.blueprintId);
+    
     // Determine user's intent
-    const currentField = this.findFieldById(session.currentFieldId!);
+    const currentField = this.findFieldById(blueprint, session.currentFieldId!);
     const intent = await this.intentService.classifyIntent(userText, currentField);
     
     // Branch based on intent
@@ -49,7 +56,71 @@ export class ChatService {
     }
     
     // User is providing an answer - extract and validate
-    return await this.handleAnswerProvision(session, userText, currentField);
+    return await this.handleAnswerProvision(session, userText, currentField, blueprint);
+  }
+
+  /**
+   * Initialize service selection for a new session
+   */
+  private async initializeServiceSelection(
+    session: Session,
+  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+    const welcomeMessage = 'Hello! What service would you like to use today?';
+    
+    return {
+      sessionId: session.id,
+      text: welcomeMessage,
+      isComplete: false,
+      data: session.data,
+    };
+  }
+
+  /**
+   * Handle service selection when user responds
+   */
+  private async handleServiceSelection(
+    session: Session,
+    userText: string,
+  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+    const availableServices = this.blueprintService.getAllBlueprints();
+    const selectionIntent = await this.intentService.classifyServiceSelection(
+      userText,
+      availableServices,
+    );
+
+    // User is asking for a list of services
+    if (selectionIntent === 'LIST_SERVICES') {
+      const serviceList = availableServices
+        .map((s) => `• ${s.name} (${s.id})`)
+        .join('\n');
+      
+      const responseText = `Here are the available services:\n\n${serviceList}\n\nWhich service would you like to use?`;
+      
+      return {
+        sessionId: session.id,
+        text: responseText,
+        isComplete: false,
+        data: session.data,
+      };
+    }
+
+    // Intent is unclear
+    if (selectionIntent === 'UNCLEAR') {
+      const responseText = 'I\'m not sure which service you\'re looking for. Could you please clarify? You can also ask "What services are available?" to see all options.';
+      
+      return {
+        sessionId: session.id,
+        text: responseText,
+        isComplete: false,
+        data: session.data,
+      };
+    }
+
+    // Service was selected - update session and start blueprint flow
+    session.blueprintId = selectionIntent;
+    await this.em.flush();
+    
+    return await this.initializeNewSession(session);
   }
 
   /**
@@ -82,6 +153,7 @@ export class ChatService {
     session: Session,
     userText: string,
     currentField: any,
+    blueprint: ServiceBlueprint,
   ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     // Extract data from user's message
     const extractedData = await this.extractionService.extractData(
@@ -116,10 +188,10 @@ export class ChatService {
     };
     
     // Determine next step and update session state
-    const nextStep = await this.updateSessionState(session);
+    const nextStep = await this.updateSessionState(session, blueprint);
     
     // Generate appropriate response
-    const responseText = await this.generateResponse(nextStep);
+    const responseText = await this.generateResponse(nextStep, blueprint);
 
     return {
       sessionId: session.id,
@@ -176,8 +248,13 @@ export class ChatService {
   private async initializeNewSession(
     session: Session,
   ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+    if (!session.blueprintId) {
+      throw new Error('Cannot initialize session without a selected blueprint');
+    }
+
+    const blueprint = this.blueprintService.getBlueprint(session.blueprintId);
     const nextStep = this.orchestratorService.determineNextStep(
-      this.blueprint,
+      blueprint,
       session.data,
     );
     
@@ -185,7 +262,7 @@ export class ChatService {
       session.currentFieldId = nextStep.nextFieldId;
       await this.em.flush();
       
-      const field = this.findFieldById(nextStep.nextFieldId);
+      const field = this.findFieldById(blueprint, nextStep.nextFieldId);
       const questionText = await this.generationService.generateQuestion(field);
       
       return {
@@ -202,12 +279,12 @@ export class ChatService {
   /**
    * Determine next step and update session state
    */
-  private async updateSessionState(session: Session): Promise<{
+  private async updateSessionState(session: Session, blueprint: ServiceBlueprint): Promise<{
     isComplete: boolean;
     nextFieldId: string | null;
   }> {
     const nextStep = this.orchestratorService.determineNextStep(
-      this.blueprint,
+      blueprint,
       session.data,
     );
     
@@ -228,13 +305,13 @@ export class ChatService {
   private async generateResponse(nextStep: {
     isComplete: boolean;
     nextFieldId: string | null;
-  }): Promise<string> {
+  }, blueprint: ServiceBlueprint): Promise<string> {
     if (nextStep.isComplete) {
       return 'Thank you! I have collected all the necessary information. Your request has been completed.';
     }
     
     if (nextStep.nextFieldId) {
-      const nextField = this.findFieldById(nextStep.nextFieldId);
+      const nextField = this.findFieldById(blueprint, nextStep.nextFieldId);
       return await this.generationService.generateQuestion(nextField);
     }
     
@@ -244,8 +321,8 @@ export class ChatService {
   /**
    * Find a field in the blueprint by ID
    */
-  private findFieldById(fieldId: string) {
-    const field = this.blueprint.fields.find((f) => f.id === fieldId);
+  private findFieldById(blueprint: ServiceBlueprint, fieldId: string) {
+    const field = blueprint.fields.find((f) => f.id === fieldId);
     
     if (!field) {
       throw new Error(`Field not found in blueprint: ${fieldId}`);
