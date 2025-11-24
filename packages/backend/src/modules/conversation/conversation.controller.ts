@@ -18,6 +18,18 @@ export class ConversationConfigDto {
   welcomeMessage: string;
 }
 
+export interface ConversationDto {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  data: Record<string, any>;
+  status: 'COLLECTING' | 'COMPLETED';
+  currentFieldId?: string;
+  blueprintId?: string;
+  blueprintName?: string;
+  messages: any[];
+}
+
 @Controller('conversation')
 export class ConversationController {
   constructor(private readonly conversationService: ConversationService) {}
@@ -33,17 +45,33 @@ export class ConversationController {
   }
 
   @Get()
-  async findAll(): Promise<Conversation[]> {
-    return await this.conversationService.findAll();
+  async findAll(): Promise<ConversationDto[]> {
+    const conversations = await this.conversationService.findAll();
+    return conversations.map(c => this.serializeConversation(c));
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<Conversation> {
-    return await this.conversationService.findOne(id);
+  async findOne(@Param('id') id: string): Promise<ConversationDto> {
+    const conversation = await this.conversationService.findOne(id);
+    return this.serializeConversation(conversation);
   }
 
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
     return await this.conversationService.remove(id);
+  }
+
+  private serializeConversation(conversation: Conversation): ConversationDto {
+    return {
+      id: conversation.id,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+      data: conversation.data,
+      status: conversation.status,
+      currentFieldId: conversation.currentFieldId,
+      blueprintId: conversation.blueprintId,
+      blueprintName: conversation.blueprintName, // This invokes the getter
+      messages: conversation.messages,
+    };
   }
 }

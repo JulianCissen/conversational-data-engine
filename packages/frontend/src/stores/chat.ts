@@ -16,6 +16,7 @@ export interface Conversation {
   status: 'COLLECTING' | 'COMPLETED'
   currentFieldId?: string
   blueprintId?: string
+  blueprintName?: string
   messages: Message[]
 }
 

@@ -1,4 +1,5 @@
 import { Entity, PrimaryKey, Property, JsonType } from '@mikro-orm/core';
+import { BlueprintService } from '../blueprint/blueprint.service';
 
 export interface Message {
   role: 'user' | 'system';
@@ -8,6 +9,12 @@ export interface Message {
 
 @Entity()
 export class Conversation {
+  // Static reference to BlueprintService for getter
+  private static blueprintService: BlueprintService;
+
+  static setBlueprintService(service: BlueprintService) {
+    Conversation.blueprintService = service;
+  }
   @PrimaryKey({ type: 'uuid', defaultRaw: 'gen_random_uuid()' })
   id!: string;
 
@@ -36,4 +43,17 @@ export class Conversation {
   // Store the complete message history
   @Property({ type: JsonType })
   messages: Message[] = [];
+
+  // Getter to retrieve the blueprint name dynamically
+  get blueprintName(): string | undefined {
+    if (!this.blueprintId || !Conversation.blueprintService) {
+      return undefined;
+    }
+    try {
+      const blueprint = Conversation.blueprintService.getBlueprint(this.blueprintId);
+      return blueprint.name;
+    } catch {
+      return undefined;
+    }
+  }
 }

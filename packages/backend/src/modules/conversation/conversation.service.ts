@@ -18,7 +18,10 @@ export class ConversationService {
     private readonly interpreterService: InterpreterService,
     private readonly presenterService: PresenterService,
     private readonly blueprintService: BlueprintService,
-  ) {}
+  ) {
+    // Set the static BlueprintService reference for the entity getter
+    Conversation.setBlueprintService(this.blueprintService);
+  }
 
   /**
    * Get configuration including welcome message

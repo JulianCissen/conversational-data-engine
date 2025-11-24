@@ -124,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import type { Conversation } from '@/stores/chat'
@@ -132,9 +132,12 @@ import type { Conversation } from '@/stores/chat'
 const drawer = ref(true)
 const rail = ref(false)
 const showDataInspector = ref(false)
+const now = ref(new Date())
 
 const chatStore = useChatStore()
 const router = useRouter()
+
+let timer: number
 
 const formattedData = computed(() => {
   return JSON.stringify(chatStore.currentFormData, null, 2)
@@ -143,6 +146,16 @@ const formattedData = computed(() => {
 // Load conversations on mount
 onMounted(async () => {
   await chatStore.fetchConversations()
+  // Update 'now' every minute for reactive timestamps
+  timer = setInterval(() => {
+    now.value = new Date()
+  }, 60000)
+})
+
+onUnmounted(() => {
+  if (timer) {
+    clearInterval(timer)
+  }
 })
 
 function handleNewChat() {
@@ -160,23 +173,18 @@ async function handleDeleteConversation(id: string) {
 }
 
 function getConversationTitle(conversation: Conversation): string {
-  // Try to use the blueprintId or first user message as title
-  if (conversation.blueprintId) {
-    return conversation.blueprintId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+  // Use the blueprintName (service name) if available, otherwise "New Chat"
+  if (conversation.blueprintName) {
+    return conversation.blueprintName
   }
   
-  const firstUserMessage = conversation.messages.find(m => m.role === 'user')
-  if (firstUserMessage) {
-    return firstUserMessage.content.substring(0, 30) + (firstUserMessage.content.length > 30 ? '...' : '')
-  }
-  
-  return 'New Conversation'
+  return 'New Chat'
 }
 
 function formatDate(date: Date): string {
   const d = new Date(date)
-  const now = new Date()
-  const diffMs = now.getTime() - d.getTime()
+  const current = now.value // Reactive dependency
+  const diffMs = current.getTime() - d.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMs / 3600000)
   const diffDays = Math.floor(diffMs / 86400000)
