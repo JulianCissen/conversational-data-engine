@@ -62,8 +62,9 @@ const formattedTimestamp = computed(() => {
 }
 
 .user-bubble {
-  background-color: #2d3035;
-  color: #e3e3e3;
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .system-message-content {
@@ -75,9 +76,5 @@ const formattedTimestamp = computed(() => {
   white-space: pre-wrap;
   line-height: 1.6;
   font-size: 0.95rem;
-}
-
-.system-message .message-text {
-  color: #e3e3e3;
 }
 </style>

@@ -70,15 +70,14 @@ const handleNewLine = (event: KeyboardEvent) => {
 }
 
 .input-card {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  backdrop-filter: blur(10px);
-  border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: rgb(var(--v-theme-surface));
+  border-radius: 24px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   transition: all 0.2s ease;
 }
 
 .input-card:hover {
-  background-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .input-content {

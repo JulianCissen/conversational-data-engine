@@ -14,8 +14,17 @@ import { createVuetify } from 'vuetify'
 // https://vuetifyjs.com/en/introduction/why-vuetify/#feature-guides
 export default createVuetify({
   theme: {
-    defaultTheme: 'dark',
+    defaultTheme: 'light',
     themes: {
+      light: {
+        colors: {
+          background: '#f8f9fa',
+          surface: '#ffffff',
+          primary: '#1a73e8',
+          secondary: '#5f6368',
+          'on-surface': '#202124',
+        },
+      },
       dark: {
         colors: {
           background: '#131314',

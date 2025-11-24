@@ -66,7 +66,18 @@
 
       <v-spacer></v-spacer>
 
-      <v-btn icon="mdi-dots-vertical" variant="text"></v-btn>
+      <v-menu>
+        <template v-slot:activator="{ props }">
+          <v-btn icon="mdi-dots-vertical" variant="text" v-bind="props"></v-btn>
+        </template>
+        <v-list>
+          <v-list-item
+            :prepend-icon="theme.global.name.value === 'dark' ? 'mdi-white-balance-sunny' : 'mdi-weather-night'"
+            :title="theme.global.name.value === 'dark' ? 'Light Mode' : 'Dark Mode'"
+            @click="toggleTheme"
+          ></v-list-item>
+        </v-list>
+      </v-menu>
     </v-app-bar>
 
     <!-- Main Content Area -->
@@ -126,6 +137,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useTheme } from 'vuetify'
 import { useChatStore } from '@/stores/chat'
 import type { Conversation } from '@/stores/chat'
 
@@ -136,8 +148,15 @@ const now = ref(new Date())
 
 const chatStore = useChatStore()
 const router = useRouter()
+const theme = useTheme()
 
 let timer: number
+
+// Load theme preference from localStorage
+const savedTheme = localStorage.getItem('theme')
+if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
+  theme.global.name.value = savedTheme
+}
 
 const formattedData = computed(() => {
   return JSON.stringify(chatStore.currentFormData, null, 2)
@@ -157,6 +176,12 @@ onUnmounted(() => {
     clearInterval(timer)
   }
 })
+
+function toggleTheme() {
+  const newTheme = theme.global.name.value === 'dark' ? 'light' : 'dark'
+  theme.global.name.value = newTheme
+  localStorage.setItem('theme', newTheme)
+}
 
 function handleNewChat() {
   router.push('/')

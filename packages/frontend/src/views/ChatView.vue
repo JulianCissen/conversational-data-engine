@@ -87,7 +87,6 @@ watch(() => route.path, async (newPath, oldPath) => {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  background-color: #131314;
 }
 
 .messages-container {
@@ -109,7 +108,6 @@ watch(() => route.path, async (newPath, oldPath) => {
 
 .chat-input-wrapper {
   flex-shrink: 0;
-  background-color: #131314;
 }
 
 .loading-container {
@@ -129,11 +127,11 @@ watch(() => route.path, async (newPath, oldPath) => {
 }
 
 .messages-container::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(var(--v-theme-on-surface), 0.2);
   border-radius: 4px;
 }
 
 .messages-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(var(--v-theme-on-surface), 0.3);
 }
 </style>
