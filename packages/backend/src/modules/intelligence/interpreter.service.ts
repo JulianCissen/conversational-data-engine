@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { LlmService } from '../../core/llm/llm.service';
-import { PromptService } from '../../core/prompt/prompt.service';
-import { TemplateService } from '../../core/template/template.service';
 import { FieldDefinition, JsonSchema, ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
+import { PromptExecutionService } from './prompt-execution.service';
+import { PROMPT_KEYS } from '../../core/prompt/prompt.constants';
 
 export type UserIntent = 'ANSWER' | 'QUESTION';
 export type ServiceSelectionIntent = string | 'LIST_SERVICES' | 'UNCLEAR';
@@ -10,9 +9,7 @@ export type ServiceSelectionIntent = string | 'LIST_SERVICES' | 'UNCLEAR';
 @Injectable()
 export class InterpreterService {
   constructor(
-    private readonly llmService: LlmService,
-    private readonly promptService: PromptService,
-    private readonly templateService: TemplateService,
+    private readonly promptExecutionService: PromptExecutionService,
   ) {}
 
   /**
@@ -26,26 +23,12 @@ export class InterpreterService {
     fields: FieldDefinition[],
     userMessage: string,
   ): Promise<Record<string, any>> {
-    // Construct the JSON Schema
     const jsonSchema = this.buildJsonSchema(fields);
-
-    // Get system prompt from database
-    const systemPrompt = this.promptService.getPrompt('interpreter.system');
-
-    try {
-      // Call the AI with structured output
-      const structuredModel = this.llmService.chatModel.withStructuredOutput(jsonSchema);
-      const result = await structuredModel.invoke([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ]);
-
-      return result as Record<string, any>;
-    } catch (error) {
-      // If LLM refuses or fails, return empty object
-      console.error('Extraction failed:', error);
-      return {};
-    }
+    return await this.promptExecutionService.executeStructuredExtraction(
+      PROMPT_KEYS.INTERPRETER_SYSTEM,
+      userMessage,
+      jsonSchema,
+    );
   }
 
   /**
@@ -59,25 +42,18 @@ export class InterpreterService {
     userText: string,
     currentField: FieldDefinition,
   ): Promise<UserIntent> {
-    const systemPrompt = this.promptService.getPrompt('intent.classification.system');
-    
-    const userMessageTemplate = this.promptService.getPrompt('intent.classification.user');
-    const userMessage = this.templateService.render(userMessageTemplate, {
-      questionTemplate: currentField.questionTemplate,
-      aiContext: currentField.aiContext,
-      userText: userText,
-    });
+    const response = await this.promptExecutionService.executeChat(
+      PROMPT_KEYS.INTENT_CLASSIFICATION_SYSTEM,
+      PROMPT_KEYS.INTENT_CLASSIFICATION_USER,
+      {
+        questionTemplate: currentField.questionTemplate,
+        aiContext: currentField.aiContext,
+        userText: userText,
+      },
+    );
 
-    const response = await this.llmService.chat(systemPrompt, userMessage);
     const intent = response.trim().toUpperCase();
-
-    // Validate and return the intent
-    if (intent === 'ANSWER' || intent === 'QUESTION') {
-      return intent;
-    }
-
-    // Default to ANSWER if unclear (safer to attempt extraction)
-    return 'ANSWER';
+    return this.validateIntent(intent);
   }
 
   /**
@@ -91,37 +67,16 @@ export class InterpreterService {
     userText: string,
     services: ServiceBlueprint[],
   ): Promise<ServiceSelectionIntent> {
-    // Build service list for the prompt
-    const serviceList = services
-      .map((s) => `- ${s.id}: ${s.name}`)
-      .join('\n');
+    const serviceList = this.formatServiceListForPrompt(services);
 
-    const systemPromptTemplate = this.promptService.getPrompt('service.selection.system');
-    const systemPrompt = this.templateService.render(systemPromptTemplate, {
-      serviceList: serviceList,
-    });
+    const response = await this.promptExecutionService.executeChatWithSystemTemplate(
+      PROMPT_KEYS.SERVICE_SELECTION_SYSTEM,
+      { serviceList },
+      PROMPT_KEYS.SERVICE_SELECTION_USER,
+      { userText },
+    );
 
-    const userMessageTemplate = this.promptService.getPrompt('service.selection.user');
-    const userMessage = this.templateService.render(userMessageTemplate, {
-      userText: userText,
-    });
-
-    const response = await this.llmService.chat(systemPrompt, userMessage);
-    const intent = response.trim();
-
-    // Validate response
-    if (intent === 'LIST_SERVICES' || intent === 'UNCLEAR') {
-      return intent;
-    }
-
-    // Check if the response is a valid service ID
-    const matchedService = services.find((s) => s.id === intent);
-    if (matchedService) {
-      return matchedService.id;
-    }
-
-    // If we can't match, return UNCLEAR
-    return 'UNCLEAR';
+    return this.validateServiceSelection(response.trim(), services);
   }
 
   /**
@@ -166,5 +121,52 @@ export class InterpreterService {
     }
 
     return jsonSchema;
+  }
+
+  /**
+   * Validate and return a user intent, defaulting to ANSWER if unclear.
+   * @param intent The intent string from LLM
+   * @returns Validated UserIntent
+   */
+  private validateIntent(intent: string): UserIntent {
+    if (intent === 'ANSWER' || intent === 'QUESTION') {
+      return intent;
+    }
+    // Default to ANSWER if unclear (safer to attempt extraction)
+    return 'ANSWER';
+  }
+
+  /**
+   * Format service list for inclusion in prompts.
+   * @param services Array of service blueprints
+   * @returns Formatted service list string
+   */
+  private formatServiceListForPrompt(services: ServiceBlueprint[]): string {
+    return services.map((s) => `- ${s.id}: ${s.name}`).join('\n');
+  }
+
+  /**
+   * Validate service selection response from LLM.
+   * @param intent The intent string from LLM
+   * @param services Available services for validation
+   * @returns Validated service selection intent
+   */
+  private validateServiceSelection(
+    intent: string,
+    services: ServiceBlueprint[],
+  ): ServiceSelectionIntent {
+    // Check for special intents
+    if (intent === 'LIST_SERVICES' || intent === 'UNCLEAR') {
+      return intent;
+    }
+
+    // Check if the response is a valid service ID
+    const matchedService = services.find((s) => s.id === intent);
+    if (matchedService) {
+      return matchedService.id;
+    }
+
+    // If we can't match, return UNCLEAR
+    return 'UNCLEAR';
   }
 }

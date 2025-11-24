@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/core';
 import { Prompt } from './prompt.entity';
+import { DEFAULT_PROMPTS } from './prompt.constants';
 
 /**
  * Service for managing AI prompts stored in the database.
@@ -87,81 +88,7 @@ export class PromptService implements OnModuleInit {
    * @param em EntityManager instance to use for seeding
    */
   private async seedDefaultPrompts(em: EntityManager) {
-    const defaultPrompts = [
-      {
-        key: 'interpreter.system',
-        value:
-          'You are a data extraction engine. Extract data from the user\'s message into the provided JSON format. ' +
-          'Do not invent values. If a field is not mentioned, leave it out. ' +
-          'Return only valid JSON matching the schema.',
-      },
-      {
-        key: 'presenter.question.system',
-        value:
-          'You are a helpful assistant collecting data for a form. Your goal is to ask the user for the specific information required. Be polite and concise.',
-      },
-      {
-        key: 'presenter.question.user',
-        value:
-          'Ask the user for the following field: \'{{questionTemplate}}\'. Context/Reason: \'{{aiContext}}\'.',
-      },
-      {
-        key: 'presenter.error.system',
-        value:
-          'You are a helpful assistant. The user tried to answer a question but provided invalid data. Explain the error gently and re-ask the question.',
-      },
-      {
-        key: 'presenter.error.user',
-        value:
-          'We asked for \'{{questionTemplate}}\'. The user replied: \'{{invalidInput}}\'. This is invalid because: \'{{errorReason}}\'. Please ask them to correct it.',
-      },
-      {
-        key: 'presenter.contextual.system',
-        value:
-          'You are a helpful assistant. The user has a question about the form. Answer their question based ONLY on the provided context, then politely re-ask the original form question. Do NOT repeat the user\'s question - instead, re-ask the field question from the form.',
-      },
-      {
-        key: 'presenter.contextual.user',
-        value:
-          'The current field is \'{{questionTemplate}}\'. The Context is: \'{{aiContext}}\'. The user asked: \'{{userQuestion}}\'. After answering, re-ask: \'{{questionTemplate}}\'.',
-      },
-      {
-        key: 'intent.classification.system',
-        value:
-          'You are an intent classifier for a conversational form system. ' +
-          'Your task is to determine if the user is:\n' +
-          '- ANSWER: Providing data/information to answer the current question\n' +
-          '- QUESTION: Asking a clarifying question about the form, the field, or why information is needed\n\n' +
-          'Respond with ONLY the word "ANSWER" or "QUESTION" - nothing else.',
-      },
-      {
-        key: 'intent.classification.user',
-        value:
-          'Current field being collected: "{{questionTemplate}}"\n' +
-          'Context: {{aiContext}}\n\n' +
-          'User\'s message: "{{userText}}"\n\n' +
-          'Is the user providing an ANSWER or asking a QUESTION?',
-      },
-      {
-        key: 'service.selection.system',
-        value:
-          'You are a service matcher for a conversational form system. ' +
-          'Your task is to determine which service the user wants to use based on their message.\n\n' +
-          'Available services:\n{{serviceList}}\n\n' +
-          'If the user is asking what services are available, respond with: LIST_SERVICES\n' +
-          'If the user clearly indicates a service, respond with ONLY the service ID (e.g., "travel_expense").\n' +
-          'If unclear, respond with: UNCLEAR\n\n' +
-          'Respond with ONLY one of: the service ID, "LIST_SERVICES", or "UNCLEAR" - nothing else.',
-      },
-      {
-        key: 'service.selection.user',
-        value:
-          'User\'s message: "{{userText}}"\n\n' +
-          'Which service does the user want?',
-      },
-    ];
-
-    for (const promptData of defaultPrompts) {
+    for (const promptData of DEFAULT_PROMPTS) {
       const prompt = new Prompt();
       prompt.key = promptData.key;
       prompt.value = promptData.value;
@@ -170,6 +97,6 @@ export class PromptService implements OnModuleInit {
     }
 
     await em.flush();
-    this.logger.log(`Seeded ${defaultPrompts.length} default prompts.`);
+    this.logger.log(`Seeded ${DEFAULT_PROMPTS.length} default prompts.`);
   }
 }
