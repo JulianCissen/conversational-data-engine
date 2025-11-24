@@ -22,19 +22,10 @@ export class PromptService implements OnModuleInit {
     this.logger.log('Initializing PromptService...');
     
     const fork = this.em.fork();
-    const existingPrompts = await fork.find(Prompt, {});
-
-    if (existingPrompts.length === 0) {
-      this.logger.log('No prompts found in database. Seeding default prompts...');
-      await this.seedDefaultPrompts(fork);
-      
-      // Reload prompts after seeding
-      const seededPrompts = await fork.find(Prompt, {});
-      this.loadPromptsIntoCache(seededPrompts);
-    } else {
-      this.logger.log(`Loading ${existingPrompts.length} prompts into memory...`);
-      this.loadPromptsIntoCache(existingPrompts);
-    }
+    await this.ensurePromptsSeeded(fork);
+    
+    const prompts = await fork.find(Prompt, {});
+    this.loadPromptsIntoCache(prompts);
 
     this.logger.log('PromptService initialized successfully.');
   }
@@ -79,6 +70,20 @@ export class PromptService implements OnModuleInit {
     for (const prompt of prompts) {
       this.promptCache.set(prompt.key, prompt.value);
       this.logger.debug(`Loaded prompt: ${prompt.key}`);
+    }
+    this.logger.log(`Loaded ${prompts.length} prompts into memory.`);
+  }
+
+  /**
+   * Ensure prompts are seeded if database is empty.
+   * @param em EntityManager instance to use
+   */
+  private async ensurePromptsSeeded(em: EntityManager): Promise<void> {
+    const existingPrompts = await em.find(Prompt, {});
+    
+    if (existingPrompts.length === 0) {
+      this.logger.log('No prompts found in database. Seeding default prompts...');
+      await this.seedDefaultPrompts(em);
     }
   }
 

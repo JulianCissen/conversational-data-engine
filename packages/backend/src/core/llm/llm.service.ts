@@ -2,29 +2,53 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { LlmConfigSchema, LlmConfig } from './llm.config';
 
 @Injectable()
 export class LlmService {
   private readonly _chatModel: ChatOpenAI;
+  private readonly config: LlmConfig;
 
   constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('LLM_API_KEY');
-    const baseURL = this.configService.get<string>('LLM_BASE_URL');
-    const modelName = this.configService.get<string>('LLM_MODEL');
+    this.config = this.loadAndValidateConfig();
+    this._chatModel = this.initializeChatModel();
+  }
 
-    if (!apiKey || !baseURL || !modelName) {
+  /**
+   * Load configuration from environment variables and validate with Zod.
+   * @returns Validated LLM configuration
+   * @throws Error if configuration is invalid
+   */
+  private loadAndValidateConfig(): LlmConfig {
+    const rawConfig = {
+      apiKey: this.configService.get<string>('LLM_API_KEY'),
+      baseURL: this.configService.get<string>('LLM_BASE_URL'),
+      modelName: this.configService.get<string>('LLM_MODEL'),
+      temperature: this.configService.get<number>('LLM_TEMPERATURE') ?? 0,
+    };
+
+    try {
+      return LlmConfigSchema.parse(rawConfig);
+    } catch (error) {
       throw new Error(
-        'Missing required LLM configuration. Please set LLM_API_KEY, LLM_BASE_URL, and LLM_MODEL in your environment variables.',
+        `Invalid LLM configuration: ${error.message}. ` +
+        'Please check LLM_API_KEY, LLM_BASE_URL, and LLM_MODEL environment variables.',
       );
     }
+  }
 
-    this._chatModel = new ChatOpenAI({
-      apiKey,
+  /**
+   * Initialize the ChatOpenAI model with validated configuration.
+   * @returns Configured ChatOpenAI instance
+   */
+  private initializeChatModel(): ChatOpenAI {
+    return new ChatOpenAI({
+      apiKey: this.config.apiKey,
       configuration: {
-        baseURL,
+        baseURL: this.config.baseURL,
       },
-      modelName,
-      temperature: 0, // Deterministic behavior for form data
+      modelName: this.config.modelName,
+      temperature: this.config.temperature,
     });
   }
 

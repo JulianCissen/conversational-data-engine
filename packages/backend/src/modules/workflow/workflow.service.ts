@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as jsonLogic from 'json-logic-js';
 import { ServiceBlueprint, FieldDefinition } from '../blueprint/interfaces/blueprint.interface';
+import { ValidationService } from '../../core/validation/validation.service';
 
 /**
  * Result of determining the next step in the conversational flow.
@@ -28,6 +29,7 @@ export interface NextStepResult {
  */
 @Injectable()
 export class WorkflowService {
+  constructor(private readonly validationService: ValidationService) {}
   /**
    * Determines the next field to be asked in the conversational flow.
    *
@@ -39,27 +41,12 @@ export class WorkflowService {
     blueprint: ServiceBlueprint,
     data: Record<string, any>,
   ): NextStepResult {
-    // Iterate through all fields in order
     for (const field of blueprint.fields) {
-      // Check if the field is already answered
-      const isAnswered =
-        data[field.id] !== undefined && data[field.id] !== null;
-
-      if (isAnswered) {
-        // Skip this field, it's already satisfied
+      if (this.isFieldSatisfied(field, data)) {
         continue;
       }
 
-      // Check visibility using JsonLogic
-      const isVisible = this.isFieldVisible(field.condition, data);
-
-      if (!isVisible) {
-        // Skip this field, it's hidden by conditional logic
-        continue;
-      }
-
-      // This field is not answered and is visible
-      // It's the next field to ask
+      // This field is not satisfied - it's the next field to ask
       return {
         nextFieldId: field.id,
         isComplete: false,
@@ -67,7 +54,6 @@ export class WorkflowService {
     }
 
     // All fields have been processed
-    // Either they're answered or hidden
     return {
       nextFieldId: null,
       isComplete: true,
@@ -98,29 +84,37 @@ export class WorkflowService {
   }
 
   /**
+   * Check if a field is satisfied (answered and visible).
+   * @param field The field definition to check
+   * @param data Current conversation data
+   * @returns true if the field is satisfied (answered or hidden), false otherwise
+   */
+  private isFieldSatisfied(
+    field: FieldDefinition,
+    data: Record<string, any>,
+  ): boolean {
+    // Check if the field is already answered
+    const isAnswered = data[field.id] !== undefined && data[field.id] !== null;
+
+    if (isAnswered) {
+      return true;
+    }
+
+    // Check if the field is hidden by conditional logic
+    const isVisible = this.isFieldVisible(field.condition, data);
+    
+    return !isVisible;
+  }
+
+  /**
    * Validates field data according to business rules.
-   * Checks if the value exists and matches the expected type.
+   * Delegates to ValidationService for comprehensive validation.
    * 
    * @param value - The extracted value to validate
    * @param field - The field definition containing type information
    * @returns true if the value is valid, false otherwise
    */
   validateValue(value: any, field: FieldDefinition): boolean {
-    // Basic validation: check if value exists
-    if (value === null || value === undefined || value === '') {
-      return false;
-    }
-    
-    // Type-specific validation
-    if (field.type === 'number' && typeof value !== 'number') {
-      return false;
-    }
-    
-    if (field.type === 'boolean' && typeof value !== 'boolean') {
-      return false;
-    }
-    
-    // TODO: Add JSON Schema validation here using field.validation
-    return true;
+    return this.validationService.validateValue(value, field);
   }
 }
