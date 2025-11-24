@@ -1,5 +1,5 @@
 <template>
-  <div class="message-wrapper" :class="{ 'user-message': isUser, 'ai-message': !isUser }">
+  <div class="message-wrapper" :class="{ 'user-message': isUser, 'system-message': !isUser }">
     <!-- User message with bubble -->
     <v-card
       v-if="isUser"
@@ -11,8 +11,8 @@
       </v-card-text>
     </v-card>
     
-    <!-- AI message without bubble, with markdown rendering -->
-    <div v-else class="ai-message-content">
+    <!-- System message without bubble, with markdown rendering -->
+    <div v-else class="system-message-content">
       <div class="message-text">
         <MarkdownText :text="text" />
       </div>
@@ -51,7 +51,7 @@ const formattedTimestamp = computed(() => {
   justify-content: flex-end;
 }
 
-.ai-message {
+.system-message {
   justify-content: flex-start;
 }
 
@@ -66,7 +66,7 @@ const formattedTimestamp = computed(() => {
   color: #e3e3e3;
 }
 
-.ai-message-content {
+.system-message-content {
   max-width: 70%;
 }
 
@@ -77,7 +77,7 @@ const formattedTimestamp = computed(() => {
   font-size: 0.95rem;
 }
 
-.ai-message .message-text {
+.system-message .message-text {
   color: #e3e3e3;
 }
 </style>

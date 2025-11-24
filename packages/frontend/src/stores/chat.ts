@@ -3,10 +3,20 @@ import { ref } from 'vue'
 import axios from 'axios'
 
 export interface Message {
-  id: number
-  text: string
-  isUser: boolean
+  role: 'user' | 'system'
+  content: string
   timestamp: Date
+}
+
+export interface Conversation {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+  data: Record<string, any>
+  status: 'COLLECTING' | 'COMPLETED'
+  currentFieldId?: string
+  blueprintId?: string
+  messages: Message[]
 }
 
 export interface ChatResponse {
@@ -19,11 +29,10 @@ export interface ChatResponse {
 export const useChatStore = defineStore('chat', () => {
   // State
   const messages = ref<Message[]>([])
+  const conversations = ref<Conversation[]>([])
   const conversationId = ref<string | null>(null)
   const isLoading = ref<boolean>(false)
   const currentFormData = ref<Record<string, any>>({})
-  
-  let messageIdCounter = 1
 
   // Backend API URL
   const API_URL = 'http://localhost:3001'
@@ -33,9 +42,8 @@ export const useChatStore = defineStore('chat', () => {
     try {
       // Add user message to state
       const userMessage: Message = {
-        id: messageIdCounter++,
-        text,
-        isUser: true,
+        role: 'user',
+        content: text,
         timestamp: new Date(),
       }
       messages.value.push(userMessage)
@@ -49,33 +57,41 @@ export const useChatStore = defineStore('chat', () => {
         text,
       })
 
-      // Update conversationId from response
+      // If this is a new conversation, fetch the conversation list and update URL
+      const isNewConversation = !conversationId.value
       conversationId.value = response.data.conversationId
+
+      if (isNewConversation) {
+        // Refresh conversation list
+        await fetchConversations()
+        // Navigate to the new conversation URL
+        window.history.pushState({}, '', `/c/${response.data.conversationId}`)
+      }
 
       // Update current form data
       currentFormData.value = response.data.data || {}
 
-      // Add AI response to state
-      const aiMessage: Message = {
-        id: messageIdCounter++,
-        text: response.data.text,
-        isUser: false,
+      // Add system response to state
+      const systemMessage: Message = {
+        role: 'system',
+        content: response.data.text,
         timestamp: new Date(),
       }
-      messages.value.push(aiMessage)
+      messages.value.push(systemMessage)
 
       // If the conversation is complete, you could trigger an event here
       if (response.data.isComplete) {
         console.log('Conversation completed!')
+        // Refresh conversation list to update status
+        await fetchConversations()
       }
     } catch (error) {
       console.error('Error sending message:', error)
       
       // Add error message to chat
       const errorMessage: Message = {
-        id: messageIdCounter++,
-        text: 'Sorry, I encountered an error. Please try again.',
-        isUser: false,
+        role: 'system',
+        content: 'Sorry, I encountered an error. Please try again.',
         timestamp: new Date(),
       }
       messages.value.push(errorMessage)
@@ -89,12 +105,61 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = []
     conversationId.value = null
     currentFormData.value = {}
-    messageIdCounter = 1
+  }
+
+  async function fetchConversations() {
+    try {
+      const response = await axios.get<Conversation[]>(`${API_URL}/conversation`)
+      conversations.value = response.data
+    } catch (error) {
+      console.error('Error fetching conversations:', error)
+    }
+  }
+
+  async function fetchWelcomeMessage(): Promise<string> {
+    try {
+      const response = await axios.get<{ welcomeMessage: string }>(`${API_URL}/conversation/config`)
+      return response.data.welcomeMessage
+    } catch (error) {
+      console.error('Error fetching welcome message:', error)
+      return 'Welcome! How can I assist you today?'
+    }
+  }
+
+  async function loadConversation(id: string) {
+    try {
+      isLoading.value = true
+      const response = await axios.get<Conversation>(`${API_URL}/conversation/${id}`)
+      
+      conversationId.value = response.data.id
+      messages.value = response.data.messages
+      currentFormData.value = response.data.data
+    } catch (error) {
+      console.error('Error loading conversation:', error)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function deleteConversation(id: string) {
+    try {
+      await axios.delete(`${API_URL}/conversation/${id}`)
+      // Remove from local list
+      conversations.value = conversations.value.filter(c => c.id !== id)
+      
+      // If we're viewing the deleted conversation, clear the chat
+      if (conversationId.value === id) {
+        clearChat()
+      }
+    } catch (error) {
+      console.error('Error deleting conversation:', error)
+    }
   }
 
   return {
     // State
     messages,
+    conversations,
     conversationId,
     isLoading,
     currentFormData,
@@ -102,5 +167,9 @@ export const useChatStore = defineStore('chat', () => {
     // Actions
     sendMessage,
     clearChat,
+    fetchConversations,
+    fetchWelcomeMessage,
+    loadConversation,
+    deleteConversation,
   }
 })

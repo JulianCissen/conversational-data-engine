@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { EntityManager, EntityRepository } from '@mikro-orm/core';
-import { Conversation } from './conversation.entity';
+import { Conversation, Message } from './conversation.entity';
 import { WorkflowService } from '../workflow/workflow.service';
 import { InterpreterService } from '../intelligence/interpreter.service';
 import { PresenterService } from '../intelligence/presenter.service';
@@ -21,6 +21,14 @@ export class ConversationService {
   ) {}
 
   /**
+   * Get configuration including welcome message
+   */
+  async getConfig(): Promise<{ welcomeMessage: string }> {
+    const welcomeMessage = this.presenterService.getWelcomeMessage();
+    return { welcomeMessage };
+  }
+
+  /**
    * Main message handling logic - The Coordinator
    * Orchestrates the conversation flow by coordinating all services
    */
@@ -30,10 +38,14 @@ export class ConversationService {
   ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     const conversation = await this.getOrCreateConversation(conversationId);
     
-    // Handle new conversation initialization with service selection
+    // Handle new conversation - store welcome message first
     if (!conversationId) {
-      return await this.initializeServiceSelection(conversation);
+      const welcomeMessage = this.presenterService.getWelcomeMessage();
+      this.appendMessage(conversation, 'system', welcomeMessage);
     }
+
+    // Append user message to history
+    this.appendMessage(conversation, 'user', userText);
 
     // Check if service has been selected
     if (!conversation.blueprintId) {
@@ -58,22 +70,6 @@ export class ConversationService {
   }
 
   /**
-   * Initialize service selection for a new conversation
-   */
-  private async initializeServiceSelection(
-    conversation: Conversation,
-  ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
-    const welcomeMessage = this.presenterService.getWelcomeMessage();
-    
-    return {
-      conversationId: conversation.id,
-      text: welcomeMessage,
-      isComplete: false,
-      data: conversation.data,
-    };
-  }
-
-  /**
    * Handle service selection when user responds
    */
   private async handleServiceSelection(
@@ -89,6 +85,8 @@ export class ConversationService {
     // User is asking for a list of services
     if (selectionIntent === 'LIST_SERVICES') {
       const responseText = this.presenterService.formatServiceList(availableServices);
+      this.appendMessage(conversation, 'system', responseText);
+      await this.em.flush();
       
       return {
         conversationId: conversation.id,
@@ -101,6 +99,8 @@ export class ConversationService {
     // Intent is unclear
     if (selectionIntent === 'UNCLEAR') {
       const responseText = this.presenterService.getServiceSelectionUnclearResponse();
+      this.appendMessage(conversation, 'system', responseText);
+      await this.em.flush();
       
       return {
         conversationId: conversation.id,
@@ -130,6 +130,9 @@ export class ConversationService {
       currentField,
       userText,
     );
+    
+    this.appendMessage(conversation, 'system', responseText);
+    await this.em.flush();
     
     return {
       conversationId: conversation.id,
@@ -166,6 +169,9 @@ export class ConversationService {
         userText,
       );
       
+      this.appendMessage(conversation, 'system', errorResponse);
+      await this.em.flush();
+      
       return {
         conversationId: conversation.id,
         text: errorResponse,
@@ -185,6 +191,9 @@ export class ConversationService {
     
     // Generate appropriate response
     const responseText = await this.generateResponse(nextStep, blueprint);
+
+    this.appendMessage(conversation, 'system', responseText);
+    await this.em.flush();
 
     return {
       conversationId: conversation.id,
@@ -229,10 +238,12 @@ export class ConversationService {
     
     if (nextStep.nextFieldId) {
       conversation.currentFieldId = nextStep.nextFieldId;
-      await this.em.flush();
       
       const field = this.findFieldById(blueprint, nextStep.nextFieldId);
       const questionText = await this.presenterService.generateQuestion(field);
+      
+      this.appendMessage(conversation, 'system', questionText);
+      await this.em.flush();
       
       return {
         conversationId: conversation.id,
@@ -298,5 +309,47 @@ export class ConversationService {
     }
     
     return field;
+  }
+
+  /**
+   * Append a message to the conversation history
+   */
+  private appendMessage(conversation: Conversation, role: 'user' | 'system', content: string): void {
+    conversation.messages.push({
+      role,
+      content,
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Get all conversations
+   */
+  async findAll(): Promise<Conversation[]> {
+    return await this.conversationRepository.findAll({
+      orderBy: { updatedAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Get a single conversation by ID
+   */
+  async findOne(id: string): Promise<Conversation> {
+    const conversation = await this.conversationRepository.findOne({ id });
+    if (!conversation) {
+      throw new Error('Conversation not found');
+    }
+    return conversation;
+  }
+
+  /**
+   * Delete a conversation by ID
+   */
+  async remove(id: string): Promise<void> {
+    const conversation = await this.conversationRepository.findOne({ id });
+    if (!conversation) {
+      throw new Error('Conversation not found');
+    }
+    await this.em.removeAndFlush(conversation);
   }
 }

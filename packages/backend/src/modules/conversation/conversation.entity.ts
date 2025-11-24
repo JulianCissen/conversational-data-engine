@@ -1,5 +1,11 @@
 import { Entity, PrimaryKey, Property, JsonType } from '@mikro-orm/core';
 
+export interface Message {
+  role: 'user' | 'system';
+  content: string;
+  timestamp: Date;
+}
+
 @Entity()
 export class Conversation {
   @PrimaryKey({ type: 'uuid', defaultRaw: 'gen_random_uuid()' })
@@ -26,4 +32,8 @@ export class Conversation {
   // Track which blueprint (service) the user has selected
   @Property({ nullable: true })
   blueprintId?: string;
+
+  // Store the complete message history
+  @Property({ type: JsonType })
+  messages: Message[] = [];
 }

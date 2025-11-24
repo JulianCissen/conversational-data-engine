@@ -25,20 +25,33 @@
 
       <v-list density="compact" nav>
         <v-list-item
-          prepend-icon="mdi-chat"
-          title="New Conversation"
+          prepend-icon="mdi-chat-plus"
+          title="New Chat"
           value="new"
+          @click="handleNewChat"
         ></v-list-item>
+        
+        <v-divider class="my-2"></v-divider>
+        
         <v-list-item
-          prepend-icon="mdi-clock-outline"
-          title="Previous Chat 1"
-          value="chat1"
-        ></v-list-item>
-        <v-list-item
-          prepend-icon="mdi-clock-outline"
-          title="Previous Chat 2"
-          value="chat2"
-        ></v-list-item>
+          v-for="conversation in chatStore.conversations"
+          :key="conversation.id"
+          :prepend-icon="conversation.status === 'COMPLETED' ? 'mdi-check-circle' : 'mdi-chat'"
+          :title="getConversationTitle(conversation)"
+          :subtitle="formatDate(conversation.updatedAt)"
+          :value="conversation.id"
+          :active="chatStore.conversationId === conversation.id"
+          @click="handleLoadConversation(conversation.id)"
+        >
+          <template v-slot:append>
+            <v-btn
+              icon="mdi-delete"
+              variant="text"
+              size="x-small"
+              @click.stop="handleDeleteConversation(conversation.id)"
+            ></v-btn>
+          </template>
+        </v-list-item>
       </v-list>
     </v-navigation-drawer>
 
@@ -111,18 +124,70 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
+import type { Conversation } from '@/stores/chat'
 
 const drawer = ref(true)
 const rail = ref(false)
 const showDataInspector = ref(false)
 
 const chatStore = useChatStore()
+const router = useRouter()
 
 const formattedData = computed(() => {
   return JSON.stringify(chatStore.currentFormData, null, 2)
 })
+
+// Load conversations on mount
+onMounted(async () => {
+  await chatStore.fetchConversations()
+})
+
+function handleNewChat() {
+  router.push('/')
+}
+
+function handleLoadConversation(id: string) {
+  router.push(`/c/${id}`)
+}
+
+async function handleDeleteConversation(id: string) {
+  if (confirm('Are you sure you want to delete this conversation?')) {
+    await chatStore.deleteConversation(id)
+  }
+}
+
+function getConversationTitle(conversation: Conversation): string {
+  // Try to use the blueprintId or first user message as title
+  if (conversation.blueprintId) {
+    return conversation.blueprintId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+  }
+  
+  const firstUserMessage = conversation.messages.find(m => m.role === 'user')
+  if (firstUserMessage) {
+    return firstUserMessage.content.substring(0, 30) + (firstUserMessage.content.length > 30 ? '...' : '')
+  }
+  
+  return 'New Conversation'
+}
+
+function formatDate(date: Date): string {
+  const d = new Date(date)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  
+  return d.toLocaleDateString()
+}
 </script>
 
 <style scoped>

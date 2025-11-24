@@ -4,10 +4,10 @@
     <div class="messages-container" ref="messagesContainer">
       <div class="messages-content">
         <MessageBubble
-          v-for="message in chatStore.messages"
-          :key="message.id"
-          :text="message.text"
-          :is-user="message.isUser"
+          v-for="(message, index) in chatStore.messages"
+          :key="index"
+          :text="message.content"
+          :is-user="message.role === 'user'"
           :timestamp="message.timestamp"
         />
         
@@ -31,11 +31,13 @@
 
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import { useChatStore } from '@/stores/chat'
 
 const chatStore = useChatStore()
+const route = useRoute()
 const messagesContainer = ref<HTMLElement | null>(null)
 
 const handleSendMessage = async (text: string) => {
@@ -58,14 +60,25 @@ watch(() => chatStore.messages.length, async () => {
   scrollToBottom()
 })
 
-// Initialize with first message when component mounts
-onMounted(async () => {
-  if (chatStore.messages.length === 0) {
-    // Start a new conversation
-    await chatStore.sendMessage('Hello')
+// Watch for route changes to load the appropriate conversation
+watch(() => route.path, async (newPath, oldPath) => {
+  const id = route.params.id
+  if (id && typeof id === 'string') {
+    // Load existing conversation
+    await chatStore.loadConversation(id)
+  } else if (newPath === '/') {
+    // Clear chat and show welcome message without creating conversation
+    chatStore.clearChat()
+    const welcomeMessage = await chatStore.fetchWelcomeMessage()
+    chatStore.messages.push({
+      role: 'system',
+      content: welcomeMessage,
+      timestamp: new Date(),
+    })
   }
+  await nextTick()
   scrollToBottom()
-})
+}, { immediate: true })
 </script>
 
 <style scoped>
