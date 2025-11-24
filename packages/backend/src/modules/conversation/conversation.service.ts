@@ -1,24 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { EntityManager, EntityRepository } from '@mikro-orm/core';
-import { Session } from '../session/session.entity';
-import { OrchestratorService } from '../orchestrator/orchestrator.service';
-import { ExtractionService } from '../extraction/extraction.service';
-import { GenerationService } from '../generation/generation.service';
-import { IntentService } from '../intent/intent.service';
+import { Conversation } from './conversation.entity';
+import { WorkflowService } from '../workflow/workflow.service';
+import { InterpreterService } from '../intelligence/interpreter.service';
+import { PresenterService } from '../intelligence/presenter.service';
 import { ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
 import { BlueprintService } from '../blueprint/blueprint.service';
 
 @Injectable()
-export class ChatService {
+export class ConversationService {
   constructor(
-    @InjectRepository(Session)
-    private readonly sessionRepository: EntityRepository<Session>,
+    @InjectRepository(Conversation)
+    private readonly conversationRepository: EntityRepository<Conversation>,
     private readonly em: EntityManager,
-    private readonly orchestratorService: OrchestratorService,
-    private readonly extractionService: ExtractionService,
-    private readonly generationService: GenerationService,
-    private readonly intentService: IntentService,
+    private readonly workflowService: WorkflowService,
+    private readonly interpreterService: InterpreterService,
+    private readonly presenterService: PresenterService,
     private readonly blueprintService: BlueprintService,
   ) {}
 
@@ -27,51 +25,51 @@ export class ChatService {
    * Orchestrates the conversation flow by coordinating all services
    */
   async handleMessage(
-    sessionId: string | undefined,
+    conversationId: string | undefined,
     userText: string,
-  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
-    const session = await this.getOrCreateSession(sessionId);
+  ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+    const conversation = await this.getOrCreateConversation(conversationId);
     
-    // Handle new session initialization with service selection
-    if (!sessionId) {
-      return await this.initializeServiceSelection(session);
+    // Handle new conversation initialization with service selection
+    if (!conversationId) {
+      return await this.initializeServiceSelection(conversation);
     }
 
     // Check if service has been selected
-    if (!session.blueprintId) {
+    if (!conversation.blueprintId) {
       // User is in service selection phase
-      return await this.handleServiceSelection(session, userText);
+      return await this.handleServiceSelection(conversation, userText);
     }
 
     // Service is selected - proceed with normal blueprint flow
-    const blueprint = this.blueprintService.getBlueprint(session.blueprintId);
+    const blueprint = this.blueprintService.getBlueprint(conversation.blueprintId);
     
     // Determine user's intent
-    const currentField = this.findFieldById(blueprint, session.currentFieldId!);
-    const intent = await this.intentService.classifyIntent(userText, currentField);
+    const currentField = this.findFieldById(blueprint, conversation.currentFieldId!);
+    const intent = await this.interpreterService.classifyIntent(userText, currentField);
     
     // Branch based on intent
     if (intent === 'QUESTION') {
-      return await this.handleClarificationQuestion(session, userText, currentField);
+      return await this.handleClarificationQuestion(conversation, userText, currentField);
     }
     
     // User is providing an answer - extract and validate
-    return await this.handleAnswerProvision(session, userText, currentField, blueprint);
+    return await this.handleAnswerProvision(conversation, userText, currentField, blueprint);
   }
 
   /**
-   * Initialize service selection for a new session
+   * Initialize service selection for a new conversation
    */
   private async initializeServiceSelection(
-    session: Session,
-  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+    conversation: Conversation,
+  ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     const welcomeMessage = 'Hello! What service would you like to use today?';
     
     return {
-      sessionId: session.id,
+      conversationId: conversation.id,
       text: welcomeMessage,
       isComplete: false,
-      data: session.data,
+      data: conversation.data,
     };
   }
 
@@ -79,11 +77,11 @@ export class ChatService {
    * Handle service selection when user responds
    */
   private async handleServiceSelection(
-    session: Session,
+    conversation: Conversation,
     userText: string,
-  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+  ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     const availableServices = this.blueprintService.getAllBlueprints();
-    const selectionIntent = await this.intentService.classifyServiceSelection(
+    const selectionIntent = await this.interpreterService.classifyServiceSelection(
       userText,
       availableServices,
     );
@@ -97,10 +95,10 @@ export class ChatService {
       const responseText = `Here are the available services:\n\n${serviceList}\n\nWhich service would you like to use?`;
       
       return {
-        sessionId: session.id,
+        conversationId: conversation.id,
         text: responseText,
         isComplete: false,
-        data: session.data,
+        data: conversation.data,
       };
     }
 
@@ -109,39 +107,39 @@ export class ChatService {
       const responseText = 'I\'m not sure which service you\'re looking for. Could you please clarify? You can also ask "What services are available?" to see all options.';
       
       return {
-        sessionId: session.id,
+        conversationId: conversation.id,
         text: responseText,
         isComplete: false,
-        data: session.data,
+        data: conversation.data,
       };
     }
 
-    // Service was selected - update session and start blueprint flow
-    session.blueprintId = selectionIntent;
+    // Service was selected - update conversation and start blueprint flow
+    conversation.blueprintId = selectionIntent;
     await this.em.flush();
     
-    return await this.initializeNewSession(session);
+    return await this.initializeNewConversation(conversation);
   }
 
   /**
    * Handle when the user is asking a clarifying question
-   * Returns a contextual response without updating session state
+   * Returns a contextual response without updating conversation state
    */
   private async handleClarificationQuestion(
-    session: Session,
+    conversation: Conversation,
     userText: string,
     currentField: any,
-  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
-    const responseText = await this.generationService.generateContextualResponse(
+  ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+    const responseText = await this.presenterService.generateContextualResponse(
       currentField,
       userText,
     );
     
     return {
-      sessionId: session.id,
+      conversationId: conversation.id,
       text: responseText,
       isComplete: false,
-      data: session.data,
+      data: conversation.data,
     };
   }
 
@@ -150,13 +148,13 @@ export class ChatService {
    * Extracts data, validates it, and progresses the conversation
    */
   private async handleAnswerProvision(
-    session: Session,
+    conversation: Conversation,
     userText: string,
     currentField: any,
     blueprint: ServiceBlueprint,
-  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+  ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     // Extract data from user's message
-    const extractedData = await this.extractionService.extractData(
+    const extractedData = await this.interpreterService.extractData(
       [currentField],
       userText,
     );
@@ -167,37 +165,37 @@ export class ChatService {
     
     // If invalid, generate error response and re-ask
     if (!isValid) {
-      const errorResponse = await this.generationService.generateErrorResponse(
+      const errorResponse = await this.presenterService.generateErrorResponse(
         currentField,
         userText,
         'The provided value is missing or does not match the expected format.',
       );
       
       return {
-        sessionId: session.id,
+        conversationId: conversation.id,
         text: errorResponse,
         isComplete: false,
-        data: session.data,
+        data: conversation.data,
       };
     }
     
-    // Valid data - update session
-    session.data = {
-      ...session.data,
+    // Valid data - update conversation
+    conversation.data = {
+      ...conversation.data,
       ...extractedData,
     };
     
-    // Determine next step and update session state
-    const nextStep = await this.updateSessionState(session, blueprint);
+    // Determine next step and update conversation state
+    const nextStep = await this.updateConversationState(conversation, blueprint);
     
     // Generate appropriate response
     const responseText = await this.generateResponse(nextStep, blueprint);
 
     return {
-      sessionId: session.id,
+      conversationId: conversation.id,
       text: responseText,
       isComplete: nextStep.isComplete,
-      data: session.data,
+      data: conversation.data,
     };
   }
 
@@ -226,72 +224,72 @@ export class ChatService {
   }
 
   /**
-   * Load existing session or create a new one
+   * Load existing conversation or create a new one
    */
-  private async getOrCreateSession(sessionId: string | undefined): Promise<Session> {
-    if (sessionId) {
-      const foundSession = await this.sessionRepository.findOne({ id: sessionId });
-      if (!foundSession) {
-        throw new Error('Session not found');
+  private async getOrCreateConversation(conversationId: string | undefined): Promise<Conversation> {
+    if (conversationId) {
+      const foundConversation = await this.conversationRepository.findOne({ id: conversationId });
+      if (!foundConversation) {
+        throw new Error('Conversation not found');
       }
-      return foundSession;
+      return foundConversation;
     }
     
-    const session = new Session();
-    await this.em.persistAndFlush(session);
-    return session;
+    const conversation = new Conversation();
+    await this.em.persistAndFlush(conversation);
+    return conversation;
   }
 
   /**
-   * Initialize a new session by generating the first question
+   * Initialize a new conversation by generating the first question
    */
-  private async initializeNewSession(
-    session: Session,
-  ): Promise<{ sessionId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
-    if (!session.blueprintId) {
-      throw new Error('Cannot initialize session without a selected blueprint');
+  private async initializeNewConversation(
+    conversation: Conversation,
+  ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+    if (!conversation.blueprintId) {
+      throw new Error('Cannot initialize conversation without a selected blueprint');
     }
 
-    const blueprint = this.blueprintService.getBlueprint(session.blueprintId);
-    const nextStep = this.orchestratorService.determineNextStep(
+    const blueprint = this.blueprintService.getBlueprint(conversation.blueprintId);
+    const nextStep = this.workflowService.determineNextStep(
       blueprint,
-      session.data,
+      conversation.data,
     );
     
     if (nextStep.nextFieldId) {
-      session.currentFieldId = nextStep.nextFieldId;
+      conversation.currentFieldId = nextStep.nextFieldId;
       await this.em.flush();
       
       const field = this.findFieldById(blueprint, nextStep.nextFieldId);
-      const questionText = await this.generationService.generateQuestion(field);
+      const questionText = await this.presenterService.generateQuestion(field);
       
       return {
-        sessionId: session.id,
+        conversationId: conversation.id,
         text: questionText,
         isComplete: false,
-        data: session.data,
+        data: conversation.data,
       };
     }
     
-    throw new Error('Unable to initialize session: no starting field found');
+    throw new Error('Unable to initialize conversation: no starting field found');
   }
 
   /**
-   * Determine next step and update session state
+   * Determine next step and update conversation state
    */
-  private async updateSessionState(session: Session, blueprint: ServiceBlueprint): Promise<{
+  private async updateConversationState(conversation: Conversation, blueprint: ServiceBlueprint): Promise<{
     isComplete: boolean;
     nextFieldId: string | null;
   }> {
-    const nextStep = this.orchestratorService.determineNextStep(
+    const nextStep = this.workflowService.determineNextStep(
       blueprint,
-      session.data,
+      conversation.data,
     );
     
-    session.currentFieldId = nextStep.nextFieldId ?? undefined;
+    conversation.currentFieldId = nextStep.nextFieldId ?? undefined;
     
     if (nextStep.isComplete) {
-      session.status = 'COMPLETED';
+      conversation.status = 'COMPLETED';
     }
     
     await this.em.flush();
@@ -312,7 +310,7 @@ export class ChatService {
     
     if (nextStep.nextFieldId) {
       const nextField = this.findFieldById(blueprint, nextStep.nextFieldId);
-      return await this.generationService.generateQuestion(nextField);
+      return await this.presenterService.generateQuestion(nextField);
     }
     
     return 'I\'m not sure what to ask next.';

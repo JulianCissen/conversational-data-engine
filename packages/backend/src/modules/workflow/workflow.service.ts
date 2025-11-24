@@ -18,21 +18,21 @@ export interface NextStepResult {
 }
 
 /**
- * Orchestrator Service
+ * Workflow Service
  *
  * Acts as the deterministic State Machine for the conversational data engine.
- * Given a ServiceBlueprint and current session data, it determines which field
+ * Given a ServiceBlueprint and current conversation data, it determines which field
  * should be asked next based on:
  * - Whether a field has already been answered
  * - Whether a field is visible (JsonLogic condition evaluation)
  */
 @Injectable()
-export class OrchestratorService {
+export class WorkflowService {
   /**
    * Determines the next field to be asked in the conversational flow.
    *
    * @param blueprint - The service blueprint defining the conversational flow
-   * @param data - Current session data as key-value pairs (fieldId -> value)
+   * @param data - Current conversation data as key-value pairs (fieldId -> value)
    * @returns An object indicating the next field ID or completion status
    */
   determineNextStep(
@@ -78,7 +78,7 @@ export class OrchestratorService {
    * Evaluates whether a field is visible based on its JsonLogic condition.
    *
    * @param condition - The JsonLogic condition, or undefined if always visible
-   * @param data - Current session data to evaluate against
+   * @param data - Current conversation data to evaluate against
    * @returns true if the field should be visible, false otherwise
    */
   private isFieldVisible(

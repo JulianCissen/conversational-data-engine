@@ -89,39 +89,39 @@ export class PromptService implements OnModuleInit {
   private async seedDefaultPrompts(em: EntityManager) {
     const defaultPrompts = [
       {
-        key: 'extraction.system',
+        key: 'interpreter.system',
         value:
           'You are a data extraction engine. Extract data from the user\'s message into the provided JSON format. ' +
           'Do not invent values. If a field is not mentioned, leave it out. ' +
           'Return only valid JSON matching the schema.',
       },
       {
-        key: 'generation.question.system',
+        key: 'presenter.question.system',
         value:
           'You are a helpful assistant collecting data for a form. Your goal is to ask the user for the specific information required. Be polite and concise.',
       },
       {
-        key: 'generation.question.user',
+        key: 'presenter.question.user',
         value:
           'Ask the user for the following field: \'{{questionTemplate}}\'. Context/Reason: \'{{aiContext}}\'.',
       },
       {
-        key: 'generation.error.system',
+        key: 'presenter.error.system',
         value:
           'You are a helpful assistant. The user tried to answer a question but provided invalid data. Explain the error gently and re-ask the question.',
       },
       {
-        key: 'generation.error.user',
+        key: 'presenter.error.user',
         value:
           'We asked for \'{{questionTemplate}}\'. The user replied: \'{{invalidInput}}\'. This is invalid because: \'{{errorReason}}\'. Please ask them to correct it.',
       },
       {
-        key: 'generation.contextual.system',
+        key: 'presenter.contextual.system',
         value:
           'You are a helpful assistant. The user has a question about the form. Answer their question based ONLY on the provided context, then politely re-ask the original form question. Do NOT repeat the user\'s question - instead, re-ask the field question from the form.',
       },
       {
-        key: 'generation.contextual.user',
+        key: 'presenter.contextual.user',
         value:
           'The current field is \'{{questionTemplate}}\'. The Context is: \'{{aiContext}}\'. The user asked: \'{{userQuestion}}\'. After answering, re-ask: \'{{questionTemplate}}\'.',
       },

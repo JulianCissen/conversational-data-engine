@@ -2,25 +2,25 @@ import { Module } from '@nestjs/common';
 import { ConfigModule as NestConfigModule } from '@nestjs/config';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import config from './mikro-orm.config';
-import { AiModule } from './ai/ai.module';
-import { ConfigModule } from './config/config.module';
-import { TemplateModule } from './template/template.module';
-import { ExtractionModule } from './extraction/extraction.module';
-import { GenerationModule } from './generation/generation.module';
-import { ChatModule } from './chat/chat.module';
-import { BlueprintModule } from './blueprint/blueprint.module';
+import { LlmModule } from './core/llm/llm.module';
+import { PromptModule } from './core/prompt/prompt.module';
+import { TemplateModule } from './core/template/template.module';
+import { BlueprintModule } from './modules/blueprint/blueprint.module';
+import { IntelligenceModule } from './modules/intelligence/intelligence.module';
+import { WorkflowModule } from './modules/workflow/workflow.module';
+import { ConversationModule } from './modules/conversation/conversation.module';
 
 @Module({
   imports: [
     NestConfigModule.forRoot({ isGlobal: true }),
     MikroOrmModule.forRoot(config),
-    ConfigModule,
+    PromptModule,
     TemplateModule,
-    AiModule,
+    LlmModule,
     BlueprintModule,
-    ExtractionModule,
-    GenerationModule,
-    ChatModule,
+    IntelligenceModule,
+    WorkflowModule,
+    ConversationModule,
   ],
   controllers: [],
   providers: [],

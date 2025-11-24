@@ -1,16 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { OrchestratorService } from './orchestrator.service';
+import { WorkflowService } from './workflow.service';
 import { ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
 
-describe('OrchestratorService', () => {
-  let service: OrchestratorService;
+describe('WorkflowService', () => {
+  let service: WorkflowService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [OrchestratorService],
+      providers: [WorkflowService],
     }).compile();
 
-    service = module.get<OrchestratorService>(OrchestratorService);
+    service = module.get<WorkflowService>(WorkflowService);
   });
 
   it('should be defined', () => {

@@ -1,7 +1,7 @@
 import { Entity, PrimaryKey, Property, JsonType } from '@mikro-orm/core';
 
 @Entity()
-export class Session {
+export class Conversation {
   @PrimaryKey({ type: 'uuid', defaultRaw: 'gen_random_uuid()' })
   id!: string;
 

@@ -10,7 +10,7 @@ export interface Message {
 }
 
 export interface ChatResponse {
-  sessionId: string
+  conversationId: string
   text: string
   isComplete: boolean
   data: Record<string, any>
@@ -19,7 +19,7 @@ export interface ChatResponse {
 export const useChatStore = defineStore('chat', () => {
   // State
   const messages = ref<Message[]>([])
-  const sessionId = ref<string | null>(null)
+  const conversationId = ref<string | null>(null)
   const isLoading = ref<boolean>(false)
   const currentFormData = ref<Record<string, any>>({})
   
@@ -44,13 +44,13 @@ export const useChatStore = defineStore('chat', () => {
       isLoading.value = true
 
       // Send message to backend
-      const response = await axios.post<ChatResponse>(`${API_URL}/chat`, {
-        sessionId: sessionId.value,
+      const response = await axios.post<ChatResponse>(`${API_URL}/conversation`, {
+        conversationId: conversationId.value,
         text,
       })
 
-      // Update sessionId from response
-      sessionId.value = response.data.sessionId
+      // Update conversationId from response
+      conversationId.value = response.data.conversationId
 
       // Update current form data
       currentFormData.value = response.data.data || {}
@@ -87,7 +87,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function clearChat() {
     messages.value = []
-    sessionId.value = null
+    conversationId.value = null
     currentFormData.value = {}
     messageIdCounter = 1
   }
@@ -95,7 +95,7 @@ export const useChatStore = defineStore('chat', () => {
   return {
     // State
     messages,
-    sessionId,
+    conversationId,
     isLoading,
     currentFormData,
     

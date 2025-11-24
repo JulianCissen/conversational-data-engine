@@ -3,7 +3,7 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "assets": ["blueprint/data/**/*.json"],
+    "assets": ["modules/blueprint/data/**/*.json"],
     "deleteOutDir": true,
     "watchAssets": true
   }
