@@ -63,7 +63,7 @@ export class ConversationService {
   private async initializeServiceSelection(
     conversation: Conversation,
   ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
-    const welcomeMessage = 'Hello! What service would you like to use today?';
+    const welcomeMessage = this.presenterService.getWelcomeMessage();
     
     return {
       conversationId: conversation.id,
@@ -88,11 +88,7 @@ export class ConversationService {
 
     // User is asking for a list of services
     if (selectionIntent === 'LIST_SERVICES') {
-      const serviceList = availableServices
-        .map((s) => `• ${s.name} (${s.id})`)
-        .join('\n');
-      
-      const responseText = `Here are the available services:\n\n${serviceList}\n\nWhich service would you like to use?`;
+      const responseText = this.presenterService.formatServiceList(availableServices);
       
       return {
         conversationId: conversation.id,
@@ -104,7 +100,7 @@ export class ConversationService {
 
     // Intent is unclear
     if (selectionIntent === 'UNCLEAR') {
-      const responseText = 'I\'m not sure which service you\'re looking for. Could you please clarify? You can also ask "What services are available?" to see all options.';
+      const responseText = this.presenterService.getServiceSelectionUnclearResponse();
       
       return {
         conversationId: conversation.id,
@@ -161,14 +157,13 @@ export class ConversationService {
     
     // Validate the extracted data
     const fieldValue = extractedData[currentField.id];
-    const isValid = this.validateFieldData(fieldValue, currentField);
+    const isValid = this.workflowService.validateValue(fieldValue, currentField);
     
     // If invalid, generate error response and re-ask
     if (!isValid) {
       const errorResponse = await this.presenterService.generateErrorResponse(
         currentField,
         userText,
-        'The provided value is missing or does not match the expected format.',
       );
       
       return {
@@ -197,30 +192,6 @@ export class ConversationService {
       isComplete: nextStep.isComplete,
       data: conversation.data,
     };
-  }
-
-  /**
-   * Validate extracted field data
-   * For MVP, this is a simple null/undefined check
-   * TODO: Implement full JSON Schema validation using Zod
-   */
-  private validateFieldData(value: any, field: any): boolean {
-    // Basic validation: check if value exists
-    if (value === null || value === undefined || value === '') {
-      return false;
-    }
-    
-    // Type-specific validation
-    if (field.type === 'number' && typeof value !== 'number') {
-      return false;
-    }
-    
-    if (field.type === 'boolean' && typeof value !== 'boolean') {
-      return false;
-    }
-    
-    // TODO: Add JSON Schema validation here
-    return true;
   }
 
   /**
@@ -305,7 +276,7 @@ export class ConversationService {
     nextFieldId: string | null;
   }, blueprint: ServiceBlueprint): Promise<string> {
     if (nextStep.isComplete) {
-      return 'Thank you! I have collected all the necessary information. Your request has been completed.';
+      return this.presenterService.getCompletionMessage();
     }
     
     if (nextStep.nextFieldId) {
@@ -313,7 +284,7 @@ export class ConversationService {
       return await this.presenterService.generateQuestion(nextField);
     }
     
-    return 'I\'m not sure what to ask next.';
+    return this.presenterService.getFallbackMessage();
   }
 
   /**

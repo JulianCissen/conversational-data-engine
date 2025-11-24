@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as jsonLogic from 'json-logic-js';
-import { ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
+import { ServiceBlueprint, FieldDefinition } from '../blueprint/interfaces/blueprint.interface';
 
 /**
  * Result of determining the next step in the conversational flow.
@@ -95,5 +95,32 @@ export class WorkflowService {
 
     // Convert the result to boolean (in case of truthy/falsy values)
     return Boolean(result);
+  }
+
+  /**
+   * Validates field data according to business rules.
+   * Checks if the value exists and matches the expected type.
+   * 
+   * @param value - The extracted value to validate
+   * @param field - The field definition containing type information
+   * @returns true if the value is valid, false otherwise
+   */
+  validateValue(value: any, field: FieldDefinition): boolean {
+    // Basic validation: check if value exists
+    if (value === null || value === undefined || value === '') {
+      return false;
+    }
+    
+    // Type-specific validation
+    if (field.type === 'number' && typeof value !== 'number') {
+      return false;
+    }
+    
+    if (field.type === 'boolean' && typeof value !== 'boolean') {
+      return false;
+    }
+    
+    // TODO: Add JSON Schema validation here using field.validation
+    return true;
   }
 }

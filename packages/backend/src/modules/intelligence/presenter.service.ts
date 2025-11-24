@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { LlmService } from '../../core/llm/llm.service';
 import { PromptService } from '../../core/prompt/prompt.service';
 import { TemplateService } from '../../core/template/template.service';
-import { FieldDefinition } from '../blueprint/interfaces/blueprint.interface';
+import { FieldDefinition, ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
 
 @Injectable()
 export class PresenterService {
@@ -40,7 +40,7 @@ export class PresenterService {
   async generateErrorResponse(
     field: FieldDefinition,
     invalidInput: string,
-    errorReason: string,
+    errorReason: string = 'The provided value is missing or does not match the expected format.',
   ): Promise<string> {
     const systemPromptTemplate = this.promptService.getPrompt('presenter.error.system');
     const userPromptTemplate = this.promptService.getPrompt('presenter.error.user');
@@ -75,5 +75,50 @@ export class PresenterService {
     });
 
     return await this.llmService.chat(systemPromptTemplate, userMessage);
+  }
+
+  /**
+   * Get the welcome message for new conversations.
+   * @returns The welcome message string
+   */
+  getWelcomeMessage(): string {
+    return 'Hello! What service would you like to use today?';
+  }
+
+  /**
+   * Format a list of available services for display.
+   * @param services Array of service blueprints
+   * @returns Formatted service list with prompt
+   */
+  formatServiceList(services: ServiceBlueprint[]): string {
+    const serviceList = services
+      .map((s) => `• ${s.name} (${s.id})`)
+      .join('\n');
+    
+    return `Here are the available services:\n\n${serviceList}\n\nWhich service would you like to use?`;
+  }
+
+  /**
+   * Get the error message when service selection is unclear.
+   * @returns The unclear selection error message
+   */
+  getServiceSelectionUnclearResponse(): string {
+    return 'I\'m not sure which service you\'re looking for. Could you please clarify? You can also ask "What services are available?" to see all options.';
+  }
+
+  /**
+   * Get the completion message when all data has been collected.
+   * @returns The completion message string
+   */
+  getCompletionMessage(): string {
+    return 'Thank you! I have collected all the necessary information. Your request has been completed.';
+  }
+
+  /**
+   * Get the fallback message when next step cannot be determined.
+   * @returns The fallback message string
+   */
+  getFallbackMessage(): string {
+    return 'I\'m not sure what to ask next.';
   }
 }
