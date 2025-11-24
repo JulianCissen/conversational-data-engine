@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ServiceBlueprint } from './interfaces/blueprint.interface';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 
 /**
@@ -72,38 +72,66 @@ export class BlueprintService implements OnModuleInit {
   private async loadBlueprints() {
     this.blueprintRegistry.clear();
 
-    if (!fs.existsSync(this.blueprintDataPath)) {
-      this.logger.warn(
-        `Blueprint data directory not found: ${this.blueprintDataPath}`,
-      );
+    const blueprintFiles = await this.getBlueprintFiles();
+    if (blueprintFiles.length === 0) {
       return;
     }
 
-    const files = fs.readdirSync(this.blueprintDataPath);
-    const jsonFiles = files.filter((file) => file.endsWith('.json'));
+    for (const file of blueprintFiles) {
+      await this.loadBlueprintFromFile(file);
+    }
+  }
 
-    for (const file of jsonFiles) {
-      try {
-        const filePath = path.join(this.blueprintDataPath, file);
-        const fileContent = fs.readFileSync(filePath, 'utf-8');
-        const blueprint: ServiceBlueprint = JSON.parse(fileContent);
+  /**
+   * Get all blueprint JSON files from the data directory.
+   * @returns Array of blueprint filenames, or empty array if directory doesn't exist
+   */
+  private async getBlueprintFiles(): Promise<string[]> {
+    try {
+      await fs.access(this.blueprintDataPath);
+      const files = await fs.readdir(this.blueprintDataPath);
+      return files.filter((file) => file.endsWith('.json'));
+    } catch (error) {
+      this.logger.warn(
+        `Blueprint data directory not found: ${this.blueprintDataPath}`,
+      );
+      return [];
+    }
+  }
 
-        // Basic validation
-        if (!blueprint.id || !blueprint.name || !blueprint.fields) {
-          this.logger.warn(
-            `Invalid blueprint format in file: ${file}. Skipping.`,
-          );
-          continue;
-        }
+  /**
+   * Validate that a blueprint has all required properties.
+   * @param blueprint The blueprint object to validate
+   * @returns True if valid, false otherwise
+   */
+  private validateBlueprint(blueprint: any): blueprint is ServiceBlueprint {
+    return !!blueprint.id && !!blueprint.name && !!blueprint.fields;
+  }
 
-        this.blueprintRegistry.set(blueprint.id, blueprint);
-        this.logger.debug(`Loaded blueprint: ${blueprint.id} (${blueprint.name})`);
-      } catch (error) {
-        this.logger.error(
-          `Failed to load blueprint from file: ${file}`,
-          error.stack,
+  /**
+   * Load a single blueprint from a file.
+   * @param filename The name of the file to load
+   */
+  private async loadBlueprintFromFile(filename: string): Promise<void> {
+    try {
+      const filePath = path.join(this.blueprintDataPath, filename);
+      const fileContent = await fs.readFile(filePath, 'utf-8');
+      const blueprint: ServiceBlueprint = JSON.parse(fileContent);
+
+      if (!this.validateBlueprint(blueprint)) {
+        this.logger.warn(
+          `Invalid blueprint format in file: ${filename}. Skipping.`,
         );
+        return;
       }
+
+      this.blueprintRegistry.set(blueprint.id, blueprint);
+      this.logger.debug(`Loaded blueprint: ${blueprint.id} (${blueprint.name})`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to load blueprint from file: ${filename}`,
+        error.stack,
+      );
     }
   }
 }
