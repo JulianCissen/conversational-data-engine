@@ -7,6 +7,30 @@ import { RulesLogic } from 'json-logic-js';
 export type JsonSchema = Record<string, any>;
 
 /**
+ * Language mode for the conversational service.
+ * - 'adaptive': AI adapts to the user's language automatically
+ * - 'strict': Enforces communication in a specific language only
+ */
+export type LanguageMode = 'adaptive' | 'strict';
+
+/**
+ * Configuration for language handling in the service.
+ */
+export interface LanguageConfig {
+  /**
+   * The language enforcement mode.
+   */
+  mode: LanguageMode;
+
+  /**
+   * The default/required language as an ISO language code (e.g., 'en-US', 'de-DE', 'fr-FR').
+   * - In 'strict' mode: This language is enforced for all communication.
+   * - In 'adaptive' mode: This acts as the fallback/default language.
+   */
+  defaultLanguage: string;
+}
+
+/**
  * Supported scalar field types in the Service Blueprint.
  * Arrays and complex types are not yet supported.
  */
@@ -48,6 +72,13 @@ export interface FieldDefinition {
    * If false, the field is skipped.
    */
   condition?: RulesLogic;
+
+  /**
+   * If true, the question must be asked exactly as written in questionTemplate.
+   * The AI can still generate conversational context, but the final question
+   * must match the blueprint text verbatim (important for legal/judicial compliance).
+   */
+  verbatim?: boolean;
 }
 
 /**
@@ -116,6 +147,12 @@ export interface ServiceBlueprint {
    * Human-readable name for this service.
    */
   name: string;
+
+  /**
+   * Optional language configuration for this service.
+   * If not provided, defaults to adaptive mode with 'en-US' as default language.
+   */
+  languageConfig?: LanguageConfig;
 
   /**
    * Ordered array of fields to collect during the conversation.

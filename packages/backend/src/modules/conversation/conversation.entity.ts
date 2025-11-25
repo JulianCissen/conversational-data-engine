@@ -40,6 +40,10 @@ export class Conversation {
   @Property({ nullable: true })
   blueprintId?: string;
 
+  // Track the detected/active language for this conversation (ISO code, e.g., 'en', 'de', 'fr')
+  @Property({ nullable: true })
+  currentLanguage?: string;
+
   // Store the complete message history
   @Property({ type: JsonType })
   messages: Message[] = [];
