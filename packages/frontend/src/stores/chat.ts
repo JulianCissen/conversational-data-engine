@@ -146,12 +146,28 @@ export const useChatStore = defineStore('chat', () => {
   async function deleteConversation(id: string) {
     try {
       await axios.delete(`${API_URL}/conversation/${id}`)
+      
+      // Check if we're viewing the deleted conversation
+      const isDeletingCurrent = conversationId.value === id
+      
       // Remove from local list
       conversations.value = conversations.value.filter(c => c.id !== id)
       
-      // If we're viewing the deleted conversation, clear the chat
-      if (conversationId.value === id) {
+      // If we're viewing the deleted conversation, navigate to the nearest chat or new chat
+      if (isDeletingCurrent) {
         clearChat()
+        
+        // Navigate to the most recent conversation, or to new chat if none exist
+        if (conversations.value.length > 0) {
+          const mostRecentConversation = conversations.value[0]
+          if (mostRecentConversation) {
+            await router.push(`/c/${mostRecentConversation.id}`)
+          } else {
+            await router.push('/')
+          }
+        } else {
+          await router.push('/')
+        }
       }
     } catch (error) {
       console.error('Error deleting conversation:', error)
