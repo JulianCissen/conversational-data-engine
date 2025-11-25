@@ -5,7 +5,7 @@
         <div class="input-content">
           <v-textarea
             v-model="message"
-            placeholder="Enter a prompt here"
+            placeholder="Enter your message..."
             rows="1"
             auto-grow
             variant="plain"
