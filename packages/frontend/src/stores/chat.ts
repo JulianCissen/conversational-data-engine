@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import axios from 'axios'
+import router from '@/router'
 
 export interface Message {
   role: 'user' | 'system'
@@ -65,8 +66,8 @@ export const useChatStore = defineStore('chat', () => {
       if (isNewConversation) {
         // Refresh conversation list
         await fetchConversations()
-        // Navigate to the new conversation URL
-        window.history.pushState({}, '', `/c/${response.data.conversationId}`)
+        // Navigate to the new conversation URL using Vue Router
+        await router.push(`/c/${response.data.conversationId}`)
       }
 
       // Update current form data

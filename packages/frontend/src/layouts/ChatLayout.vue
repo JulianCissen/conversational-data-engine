@@ -28,6 +28,7 @@
           prepend-icon="mdi-chat-plus"
           title="New Chat"
           value="new"
+          :active="!chatStore.conversationId"
           @click="handleNewChat"
         ></v-list-item>
         
@@ -184,6 +185,8 @@ function toggleTheme() {
 }
 
 function handleNewChat() {
+  // Clear the conversation state before navigating
+  chatStore.clearChat()
   router.push('/')
 }
 
