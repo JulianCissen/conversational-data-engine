@@ -1,0 +1,25 @@
+{
+  "name": "@conversational-data-engine/http-caller-plugin",
+  "version": "1.0.0",
+  "description": "HTTP caller plugin for making external API requests and mapping responses to conversation slots",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "conversational",
+    "plugin",
+    "http",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@conversational-data-engine/plugin-builder": "*",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3"
+  }
+}

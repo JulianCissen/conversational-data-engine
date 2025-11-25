@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as jsonLogic from 'json-logic-js';
 import { ServiceBlueprint, FieldDefinition } from '../blueprint/interfaces/blueprint.interface';
 import { ValidationService } from '../../core/validation/validation.service';
@@ -29,6 +29,8 @@ export interface NextStepResult {
  */
 @Injectable()
 export class WorkflowService {
+  private readonly logger = new Logger(WorkflowService.name);
+  
   constructor(private readonly validationService: ValidationService) {}
   /**
    * Determines the next field to be asked in the conversational flow.

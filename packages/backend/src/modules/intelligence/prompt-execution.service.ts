@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../core/llm/llm.service';
 import { PromptService } from '../../core/prompt/prompt.service';
 import { TemplateService } from '../../core/template/template.service';
@@ -10,6 +10,7 @@ import { JsonSchema } from '../blueprint/interfaces/blueprint.interface';
  */
 @Injectable()
 export class PromptExecutionService {
+  private readonly logger = new Logger(PromptExecutionService.name);
   constructor(
     private readonly llmService: LlmService,
     private readonly promptService: PromptService,
@@ -79,9 +80,42 @@ export class PromptExecutionService {
         { role: 'user', content: userMessage },
       ]);
 
+      this.logger.debug(`[executeStructuredExtraction] LLM output: ${JSON.stringify(result)}`);
       return result as Record<string, any>;
     } catch (error) {
-      console.error('Structured extraction failed:', error);
+      this.logger.error(`[executeStructuredExtraction] Failed:`, error);
+      return {};
+    }
+  }
+
+  /**
+   * Execute a structured chat completion with template rendering for both prompts.
+   * @param systemPromptKey The key for the system prompt
+   * @param userPromptKey The key for the user prompt
+   * @param variables Variables to render in the user prompt template
+   * @param jsonSchema The JSON schema for structured output
+   * @returns The extracted structured data as a JSON object
+   */
+  async executeStructuredChat(
+    systemPromptKey: string,
+    userPromptKey: string,
+    variables: Record<string, any>,
+    jsonSchema: JsonSchema,
+  ): Promise<Record<string, any>> {
+    const systemPrompt = this.promptService.getPrompt(systemPromptKey);
+    const userPromptTemplate = this.promptService.getPrompt(userPromptKey);
+    const userMessage = this.templateService.render(userPromptTemplate, variables);
+
+    try {
+      const structuredModel = this.llmService.chatModel.withStructuredOutput(jsonSchema);
+      const result = await structuredModel.invoke([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ]);
+
+      return result as Record<string, any>;
+    } catch (error) {
+      this.logger.error('Structured chat failed:', error);
       return {};
     }
   }

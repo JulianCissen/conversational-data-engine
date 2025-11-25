@@ -55,9 +55,22 @@ export interface FieldDefinition {
  */
 export interface PluginConfig {
   /**
-   * Unique identifier for the plugin (e.g., "user-lookup", "payment-processor").
+   * Unique identifier for the plugin type (e.g., "http-caller", "user-lookup").
    */
   id: string;
+
+  /**
+   * Optional instance identifier for this specific plugin configuration.
+   * Allows the same plugin to be used multiple times with different configs.
+   * If not provided, defaults to the plugin id.
+   */
+  instanceId?: string;
+
+  /**
+   * Optional field ID to filter execution for onFieldValidated hooks.
+   * If set, the plugin will only execute when this specific field is validated.
+   */
+  triggerOnField?: string;
 
   /**
    * Plugin-specific configuration object.
@@ -70,14 +83,23 @@ export interface PluginConfig {
  */
 export interface ServiceHooks {
   /**
-   * Array of plugin IDs to execute when the service starts.
+   * Array of plugin instance IDs to execute when the service starts.
+   * References the instanceId (or id if instanceId not provided) from PluginConfig.
    */
   onStart?: string[];
 
   /**
-   * Array of plugin IDs to execute when the user submits the final data.
+   * Array of plugin instance IDs to execute immediately after a field is successfully validated and stored.
+   * This is designed for intermediate data lookups (e.g., pre-filling data).
+   * Plugins can also use triggerOnField to filter which fields they respond to.
    */
-  onSubmit?: string[];
+  onFieldValidated?: string[];
+
+  /**
+   * Array of plugin instance IDs to execute when the conversation is complete.
+   * References the instanceId (or id if instanceId not provided) from PluginConfig.
+   */
+  onConversationComplete?: string[];
 }
 
 /**

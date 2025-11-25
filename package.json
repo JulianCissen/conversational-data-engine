@@ -1,0 +1,15 @@
+{
+  "name": "conversational-data-engine",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "packages/plugins/*"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "build:plugin-builder": "cd packages/plugin-builder && npm run build",
+    "build:http-caller": "cd packages/plugins/http-caller && npm run build",
+    "build:plugins": "npm run build:plugin-builder && npm run build:http-caller"
+  }
+}

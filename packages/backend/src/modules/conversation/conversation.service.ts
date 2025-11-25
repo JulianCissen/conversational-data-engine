@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { EntityManager, EntityRepository } from '@mikro-orm/core';
 import { Conversation, Message } from './conversation.entity';
@@ -7,9 +7,12 @@ import { InterpreterService } from '../intelligence/interpreter.service';
 import { PresenterService } from '../intelligence/presenter.service';
 import { ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
 import { BlueprintService } from '../blueprint/blueprint.service';
+import { PluginManagerService } from '../../core/plugin/plugin.service';
 
 @Injectable()
 export class ConversationService {
+  private readonly logger = new Logger(ConversationService.name);
+
   constructor(
     @InjectRepository(Conversation)
     private readonly conversationRepository: EntityRepository<Conversation>,
@@ -18,6 +21,7 @@ export class ConversationService {
     private readonly interpreterService: InterpreterService,
     private readonly presenterService: PresenterService,
     private readonly blueprintService: BlueprintService,
+    private readonly pluginManagerService: PluginManagerService,
   ) {
     // Set the static BlueprintService reference for the entity getter
     Conversation.setBlueprintService(this.blueprintService);
@@ -61,10 +65,10 @@ export class ConversationService {
     
     // Determine user's intent
     const currentField = this.findFieldById(blueprint, conversation.currentFieldId!);
-    const intent = await this.interpreterService.classifyIntent(userText, currentField);
+    const intentClassification = await this.interpreterService.classifyIntent(userText, currentField);
     
     // Branch based on intent
-    if (intent === 'QUESTION') {
+    if (intentClassification.intent === 'QUESTION') {
       return await this.handleClarificationQuestion(conversation, userText, currentField);
     }
     
@@ -163,10 +167,16 @@ export class ConversationService {
     
     // Validate the extracted data
     const fieldValue = extractedData[currentField.id];
+    
     const isValid = this.workflowService.validateValue(fieldValue, currentField);
+    this.logger.debug(`[handleAnswerProvision] Validation for '${currentField.id}': ${isValid ? 'PASS' : 'FAIL'}`);
     
     // If invalid, generate error response and re-ask
     if (!isValid) {
+      this.logger.debug(
+        `[handleAnswerProvision] Validation failed - Expected: ${JSON.stringify(currentField.validation)}, Received: ${JSON.stringify(fieldValue)}`,
+      );
+      
       const errorResponse = await this.presenterService.generateErrorResponse(
         currentField,
         userText,
@@ -183,14 +193,57 @@ export class ConversationService {
       };
     }
     
+    this.logger.log(`[handleAnswerProvision] Validation passed, updating conversation data`);
+    
     // Valid data - update conversation
     conversation.data = {
       ...conversation.data,
       ...extractedData,
     };
     
+    // Execute onFieldValidated hooks
+    if (blueprint.hooks.onFieldValidated && blueprint.hooks.onFieldValidated.length > 0) {
+      const pluginResult = await this.pluginManagerService.executeFieldValidated(
+        blueprint.hooks.onFieldValidated,
+        {
+          serviceId: blueprint.id,
+          conversationId: conversation.id,
+          data: conversation.data,
+          fieldId: currentField.id,
+          fieldValue: fieldValue,
+          config: this.getPluginConfig(blueprint, blueprint.hooks.onFieldValidated[0]),
+        },
+        blueprint,
+      );
+      
+      // Merge slot updates from plugins
+      if (pluginResult.slotUpdates && Object.keys(pluginResult.slotUpdates).length > 0) {
+        conversation.data = {
+          ...conversation.data,
+          ...pluginResult.slotUpdates,
+        };
+        
+        // Validate merged data against blueprint
+        await this.validateConversationData(conversation, blueprint);
+      }
+    }
+    
     // Determine next step and update conversation state
     const nextStep = await this.updateConversationState(conversation, blueprint);
+    
+    // If conversation is complete, execute onConversationComplete hooks
+    if (nextStep.isComplete && blueprint.hooks.onConversationComplete && blueprint.hooks.onConversationComplete.length > 0) {
+      await this.pluginManagerService.executeConversationComplete(
+        blueprint.hooks.onConversationComplete,
+        {
+          serviceId: blueprint.id,
+          conversationId: conversation.id,
+          data: conversation.data,
+          config: this.getPluginConfig(blueprint, blueprint.hooks.onConversationComplete[0]),
+        },
+        blueprint,
+      );
+    }
     
     // Generate appropriate response
     const responseText = await this.generateResponse(nextStep, blueprint);
@@ -234,6 +287,32 @@ export class ConversationService {
     }
 
     const blueprint = this.blueprintService.getBlueprint(conversation.blueprintId);
+    
+    // Execute onStart hooks
+    if (blueprint.hooks.onStart && blueprint.hooks.onStart.length > 0) {
+      const pluginResult = await this.pluginManagerService.executeStart(
+        blueprint.hooks.onStart,
+        {
+          serviceId: blueprint.id,
+          conversationId: conversation.id,
+          data: conversation.data,
+          config: this.getPluginConfig(blueprint, blueprint.hooks.onStart[0]),
+        },
+        blueprint,
+      );
+      
+      // Merge slot updates from plugins
+      if (pluginResult.slotUpdates && Object.keys(pluginResult.slotUpdates).length > 0) {
+        conversation.data = {
+          ...conversation.data,
+          ...pluginResult.slotUpdates,
+        };
+        
+        // Validate merged data against blueprint
+        await this.validateConversationData(conversation, blueprint);
+      }
+    }
+    
     const nextStep = this.workflowService.determineNextStep(
       blueprint,
       conversation.data,
@@ -323,6 +402,30 @@ export class ConversationService {
       content,
       timestamp: new Date(),
     });
+  }
+
+  /**
+   * Get plugin configuration for a specific plugin instance ID from the blueprint
+   */
+  private getPluginConfig(blueprint: ServiceBlueprint, instanceId: string): Record<string, any> {
+    const plugin = blueprint.plugins.find((p) => (p.instanceId || p.id) === instanceId);
+    return plugin?.config || {};
+  }
+
+  /**
+   * Validate conversation data against blueprint schema.
+   * Throws an error if validation fails.
+   */
+  private async validateConversationData(conversation: Conversation, blueprint: ServiceBlueprint): Promise<void> {
+    for (const [key, value] of Object.entries(conversation.data)) {
+      const field = blueprint.fields.find((f) => f.id === key);
+      if (field) {
+        const isValid = this.workflowService.validateValue(value, field);
+        if (!isValid) {
+          throw new Error(`Plugin slot update validation failed for field: ${key}`);
+        }
+      }
+    }
   }
 
   /**

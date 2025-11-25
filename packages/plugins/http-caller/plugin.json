@@ -1,0 +1,7 @@
+{
+  "id": "http-caller",
+  "name": "HTTP Caller Plugin",
+  "version": "1.0.0",
+  "description": "Makes HTTP requests to external APIs and maps responses to conversation slots",
+  "entry": "dist/index.js"
+}

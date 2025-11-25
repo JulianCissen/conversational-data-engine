@@ -6,6 +6,7 @@ import { Conversation } from './conversation.entity';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { BlueprintModule } from '../blueprint/blueprint.module';
+import { PluginModule } from '../../core/plugin/plugin.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { BlueprintModule } from '../blueprint/blueprint.module';
     WorkflowModule,
     IntelligenceModule,
     BlueprintModule,
+    PluginModule,
   ],
   controllers: [ConversationController],
   providers: [ConversationService],

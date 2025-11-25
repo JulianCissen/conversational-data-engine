@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { FieldDefinition, JsonSchema, ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
 import { PromptExecutionService } from './prompt-execution.service';
 import { PROMPT_KEYS } from '../../core/prompt/prompt.constants';
@@ -6,8 +6,15 @@ import { PROMPT_KEYS } from '../../core/prompt/prompt.constants';
 export type UserIntent = 'ANSWER' | 'QUESTION';
 export type ServiceSelectionIntent = string | 'LIST_SERVICES' | 'UNCLEAR';
 
+export interface IntentClassification {
+  intent: UserIntent;
+  reason: string;
+}
+
 @Injectable()
 export class InterpreterService {
+  private readonly logger = new Logger(InterpreterService.name);
+
   constructor(
     private readonly promptExecutionService: PromptExecutionService,
   ) {}
@@ -24,11 +31,15 @@ export class InterpreterService {
     userMessage: string,
   ): Promise<Record<string, any>> {
     const jsonSchema = this.buildJsonSchema(fields);
-    return await this.promptExecutionService.executeStructuredExtraction(
+    
+    const result = await this.promptExecutionService.executeStructuredExtraction(
       PROMPT_KEYS.INTERPRETER_SYSTEM,
       userMessage,
       jsonSchema,
     );
+    
+    this.logger.debug(`[extractData] LLM extraction result: ${JSON.stringify(result)}`);
+    return result;
   }
 
   /**
@@ -36,13 +47,30 @@ export class InterpreterService {
    * Determines if the user is trying to answer the question or asking for clarification.
    * @param userText The user's message
    * @param currentField The current field being collected
-   * @returns 'ANSWER' if providing data, 'QUESTION' if asking for clarification
+   * @returns IntentClassification object with intent and reason
    */
   async classifyIntent(
     userText: string,
     currentField: FieldDefinition,
-  ): Promise<UserIntent> {
-    const response = await this.promptExecutionService.executeChat(
+  ): Promise<IntentClassification> {
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: {
+        intent: {
+          type: 'string',
+          enum: ['ANSWER', 'QUESTION'],
+          description: 'Whether the user is providing an answer or asking a clarifying question',
+        },
+        reason: {
+          type: 'string',
+          description: 'Brief explanation of why the message was classified as such',
+        },
+      },
+      required: ['intent', 'reason'],
+      additionalProperties: false,
+    };
+
+    const result = await this.promptExecutionService.executeStructuredChat(
       PROMPT_KEYS.INTENT_CLASSIFICATION_SYSTEM,
       PROMPT_KEYS.INTENT_CLASSIFICATION_USER,
       {
@@ -50,10 +78,22 @@ export class InterpreterService {
         aiContext: currentField.aiContext,
         userText: userText,
       },
+      schema,
     );
 
-    const intent = response.trim().toUpperCase();
-    return this.validateIntent(intent);
+    const classification: IntentClassification = {
+      intent: this.validateIntent(result.intent || 'ANSWER'),
+      reason: result.reason || 'No reason provided',
+    };
+
+    // Log if the message is not classified as a valid answer
+    if (classification.intent !== 'ANSWER') {
+      this.logger.log(
+        `Intent classified as ${classification.intent}: "${userText}" - Reason: ${classification.reason}`,
+      );
+    }
+
+    return classification;
   }
 
   /**
@@ -128,9 +168,10 @@ export class InterpreterService {
    * @param intent The intent string from LLM
    * @returns Validated UserIntent
    */
-  private validateIntent(intent: string): UserIntent {
-    if (intent === 'ANSWER' || intent === 'QUESTION') {
-      return intent;
+  private validateIntent(intent: string | undefined): UserIntent {
+    const normalized = intent?.trim().toUpperCase();
+    if (normalized === 'ANSWER' || normalized === 'QUESTION') {
+      return normalized;
     }
     // Default to ANSWER if unclear (safer to attempt extraction)
     return 'ANSWER';

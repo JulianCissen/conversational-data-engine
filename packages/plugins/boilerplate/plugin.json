@@ -1,0 +1,7 @@
+{
+  "id": "boilerplate-plugin",
+  "name": "Boilerplate Plugin",
+  "version": "1.0.0",
+  "description": "A minimal boilerplate plugin for the Conversational Data Engine",
+  "entry": "dist/index.js"
+}
