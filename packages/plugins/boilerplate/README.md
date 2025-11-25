@@ -24,7 +24,7 @@ cd packages/plugins/boilerplate
 #### Update `package.json`
 - Change the `name` to `@conversational-data-engine/your-plugin-name`
 - Update `description`, `author`, and other metadata
-- If working outside the monorepo, change the plugin-builder dependency from `workspace:*` to a specific version
+- If working outside the monorepo, change the plugin-builder dependency from `*` to a specific version
 
 #### Update `plugin.json`
 - Change `id` to a unique identifier (e.g., `your-plugin-name`)

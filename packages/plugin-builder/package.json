@@ -1,20 +1,30 @@
 {
   "name": "@conversational-data-engine/plugin-builder",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Plugin builder interface for Conversational Data Engine",
+  "keywords": [
+    "conversational",
+    "plugin",
+    "builder",
+    "interface"
+  ],
+  "homepage": "https://github.com/JulianCissen/conversational-data-engine#readme",
+  "bugs": {
+    "url": "https://github.com/JulianCissen/conversational-data-engine/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JulianCissen/conversational-data-engine.git",
+    "directory": "packages/plugin-builder"
+  },
+  "license": "UNLICENSED",
+  "author": "Julian Cissen <107254512+JulianCissen@users.noreply.github.com>",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch"
   },
-  "keywords": [
-    "conversational",
-    "plugin",
-    "builder"
-  ],
-  "author": "",
-  "license": "MIT",
   "devDependencies": {
     "typescript": "^5.3.3"
   }

@@ -1,24 +1,35 @@
 {
   "name": "@conversational-data-engine/boilerplate-plugin",
-  "version": "1.0.0",
-  "description": "A boilerplate plugin for the Conversational Data Engine",
+  "version": "0.0.1",
+  "description": "A boilerplate plugin template for Conversational Data Engine",
+  "keywords": [
+    "conversational",
+    "plugin",
+    "boilerplate",
+    "template"
+  ],
+  "homepage": "https://github.com/JulianCissen/conversational-data-engine#readme",
+  "bugs": {
+    "url": "https://github.com/JulianCissen/conversational-data-engine/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JulianCissen/conversational-data-engine.git",
+    "directory": "packages/plugins/boilerplate"
+  },
+  "license": "UNLICENSED",
+  "author": "Julian Cissen <107254512+JulianCissen@users.noreply.github.com>",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc"
   },
-  "keywords": [
-    "plugin",
-    "boilerplate",
-    "conversational-data-engine"
-  ],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@conversational-data-engine/plugin-builder": "workspace:*"
+    "@conversational-data-engine/plugin-builder": "*"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",
     "typescript": "^5.3.3"
-  }
+  },
+  "private": true
 }

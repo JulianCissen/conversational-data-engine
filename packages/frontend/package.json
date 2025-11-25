@@ -1,8 +1,26 @@
 {
   "name": "@conversational-data-engine/frontend",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Frontend UI for Conversational Data Engine",
+  "keywords": [
+    "conversational",
+    "frontend",
+    "ui",
+    "vue",
+    "chat"
+  ],
+  "homepage": "https://github.com/JulianCissen/conversational-data-engine#readme",
+  "bugs": {
+    "url": "https://github.com/JulianCissen/conversational-data-engine/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JulianCissen/conversational-data-engine.git",
+    "directory": "packages/frontend"
+  },
+  "license": "UNLICENSED",
+  "author": "Julian Cissen <107254512+JulianCissen@users.noreply.github.com>",
   "type": "module",
-  "version": "0.0.0",
   "scripts": {
     "dev": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
@@ -36,5 +54,6 @@
     "vite": "^7.1.5",
     "vite-plugin-vuetify": "^2.1.2",
     "vue-tsc": "^3.0.7"
-  }
+  },
+  "private": true
 }

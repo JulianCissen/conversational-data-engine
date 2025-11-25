@@ -1,10 +1,25 @@
 {
   "name": "@conversational-data-engine/backend",
-  "version": "0.0.1",
-  "description": "",
-  "author": "Julian Cissen",
-  "private": true,
-  "license": "MIT",
+  "version": "0.1.0",
+  "description": "Backend API server for Conversational Data Engine",
+  "keywords": [
+    "conversational",
+    "backend",
+    "api",
+    "nestjs",
+    "chat"
+  ],
+  "homepage": "https://github.com/JulianCissen/conversational-data-engine#readme",
+  "bugs": {
+    "url": "https://github.com/JulianCissen/conversational-data-engine/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JulianCissen/conversational-data-engine.git",
+    "directory": "packages/backend"
+  },
+  "license": "UNLICENSED",
+  "author": "Julian Cissen <107254512+JulianCissen@users.noreply.github.com>",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -82,5 +97,6 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
-  }
+  },
+  "private": true
 }

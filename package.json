@@ -1,7 +1,24 @@
 {
-  "name": "conversational-data-engine",
+  "name": "@conversational-data-engine/root",
   "version": "0.1.0",
-  "private": true,
+  "description": "A conversational data engine for building intelligent chat applications",
+  "keywords": [
+    "conversational",
+    "chat",
+    "ai",
+    "data-engine",
+    "nlp"
+  ],
+  "homepage": "https://github.com/JulianCissen/conversational-data-engine#readme",
+  "bugs": {
+    "url": "https://github.com/JulianCissen/conversational-data-engine/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JulianCissen/conversational-data-engine.git"
+  },
+  "license": "UNLICENSED",
+  "author": "Julian Cissen <107254512+JulianCissen@users.noreply.github.com>",
   "workspaces": [
     "packages/*",
     "packages/plugins/*"
@@ -11,5 +28,6 @@
     "build:plugin-builder": "cd packages/plugin-builder && npm run build",
     "build:http-caller": "cd packages/plugins/http-caller && npm run build",
     "build:plugins": "npm run build:plugin-builder && npm run build:http-caller"
-  }
+  },
+  "private": true
 }
