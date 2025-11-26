@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { LlmConfigSchema, LlmConfig } from './llm.config';
+import { LlmConfig, loadAndValidateLlmConfig } from './llm.config';
 
 @Injectable()
 export class LlmService {
@@ -10,7 +10,7 @@ export class LlmService {
   private readonly config: LlmConfig;
 
   constructor(private readonly configService: ConfigService) {
-    this.config = this.loadAndValidateConfig();
+    this.config = this.resolveConfig();
     this._chatModel = this.initializeChatModel();
   }
 
@@ -19,22 +19,8 @@ export class LlmService {
    * @returns Validated LLM configuration
    * @throws Error if configuration is invalid
    */
-  private loadAndValidateConfig(): LlmConfig {
-    const rawConfig = {
-      apiKey: this.configService.get<string>('LLM_API_KEY'),
-      baseURL: this.configService.get<string>('LLM_BASE_URL'),
-      modelName: this.configService.get<string>('LLM_MODEL'),
-      temperature: this.configService.get<number>('LLM_TEMPERATURE') ?? 0,
-    };
-
-    try {
-      return LlmConfigSchema.parse(rawConfig);
-    } catch (error) {
-      throw new Error(
-        `Invalid LLM configuration: ${error.message}. ` +
-        'Please check LLM_API_KEY, LLM_BASE_URL, and LLM_MODEL environment variables.',
-      );
-    }
+  private resolveConfig(): LlmConfig {
+    return loadAndValidateLlmConfig(this.configService);
   }
 
   /**
