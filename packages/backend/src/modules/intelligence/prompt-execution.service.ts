@@ -37,6 +37,28 @@ export class PromptExecutionService {
   }
 
   /**
+   * Execute a chat completion with an augmented system prompt and user prompt.
+   * @param systemPromptKey The key for the base system prompt
+   * @param systemPromptAugmentation Additional text to append to the system prompt
+   * @param userPromptKey The key for the user prompt
+   * @param variables Variables to render in the user prompt template
+   * @returns The LLM response as a string
+   */
+  async executeChatWithAugmentedSystem(
+    systemPromptKey: string,
+    systemPromptAugmentation: string,
+    userPromptKey: string,
+    variables: Record<string, any>,
+  ): Promise<string> {
+    const baseSystemPrompt = this.promptService.getPrompt(systemPromptKey);
+    const systemPrompt = baseSystemPrompt + '\n\n' + systemPromptAugmentation;
+    const userPromptTemplate = this.promptService.getPrompt(userPromptKey);
+    const userMessage = this.templateService.render(userPromptTemplate, variables);
+
+    return await this.llmService.chat(systemPrompt, userMessage);
+  }
+
+  /**
    * Execute a chat completion with a system prompt that also requires template rendering.
    * @param systemPromptKey The key for the system prompt template
    * @param systemVariables Variables to render in the system prompt template
@@ -89,6 +111,38 @@ export class PromptExecutionService {
   }
 
   /**
+   * Execute structured data extraction with augmented system prompt.
+   * @param systemPromptKey The key for the base system prompt
+   * @param systemPromptAugmentation Additional text to append to the system prompt
+   * @param userMessage The user's raw message
+   * @param jsonSchema The JSON schema for structured output
+   * @returns The extracted data as a JSON object
+   */
+  async executeStructuredExtractionWithAugmentedSystem(
+    systemPromptKey: string,
+    systemPromptAugmentation: string,
+    userMessage: string,
+    jsonSchema: JsonSchema,
+  ): Promise<Record<string, any>> {
+    const baseSystemPrompt = this.promptService.getPrompt(systemPromptKey);
+    const systemPrompt = baseSystemPrompt + '\n\n' + systemPromptAugmentation;
+
+    try {
+      const structuredModel = this.llmService.chatModel.withStructuredOutput(jsonSchema);
+      const result = await structuredModel.invoke([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ]);
+
+      this.logger.debug(`[executeStructuredExtractionWithAugmentedSystem] LLM output: ${JSON.stringify(result)}`);
+      return result as Record<string, any>;
+    } catch (error) {
+      this.logger.error(`[executeStructuredExtractionWithAugmentedSystem] Failed:`, error);
+      return {};
+    }
+  }
+
+  /**
    * Execute a structured chat completion with template rendering for both prompts.
    * @param systemPromptKey The key for the system prompt
    * @param userPromptKey The key for the user prompt
@@ -116,6 +170,41 @@ export class PromptExecutionService {
       return result as Record<string, any>;
     } catch (error) {
       this.logger.error('Structured chat failed:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Execute a structured chat completion with augmented system prompt.
+   * @param systemPromptKey The key for the base system prompt
+   * @param systemPromptAugmentation Additional text to append to the system prompt
+   * @param userPromptKey The key for the user prompt
+   * @param variables Variables to render in the user prompt template
+   * @param jsonSchema The JSON schema for structured output
+   * @returns The extracted structured data as a JSON object
+   */
+  async executeStructuredChatWithAugmentedSystem(
+    systemPromptKey: string,
+    systemPromptAugmentation: string,
+    userPromptKey: string,
+    variables: Record<string, any>,
+    jsonSchema: JsonSchema,
+  ): Promise<Record<string, any>> {
+    const baseSystemPrompt = this.promptService.getPrompt(systemPromptKey);
+    const systemPrompt = baseSystemPrompt + '\n\n' + systemPromptAugmentation;
+    const userPromptTemplate = this.promptService.getPrompt(userPromptKey);
+    const userMessage = this.templateService.render(userPromptTemplate, variables);
+
+    try {
+      const structuredModel = this.llmService.chatModel.withStructuredOutput(jsonSchema);
+      const result = await structuredModel.invoke([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ]);
+
+      return result as Record<string, any>;
+    } catch (error) {
+      this.logger.error('Structured chat with augmented system failed:', error);
       return {};
     }
   }

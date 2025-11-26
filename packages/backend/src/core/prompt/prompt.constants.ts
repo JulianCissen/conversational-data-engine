@@ -13,6 +13,8 @@ export const PROMPT_KEYS = {
   PRESENTER_ERROR_USER: 'presenter.error.user',
   PRESENTER_CONTEXTUAL_SYSTEM: 'presenter.contextual.system',
   PRESENTER_CONTEXTUAL_USER: 'presenter.contextual.user',
+  PRESENTER_LANGUAGE_ANNOUNCEMENT_SYSTEM: 'presenter.language.announcement.system',
+  PRESENTER_LANGUAGE_ANNOUNCEMENT_USER: 'presenter.language.announcement.user',
 
   // Intent classification prompts
   INTENT_CLASSIFICATION_SYSTEM: 'intent.classification.system',
@@ -69,6 +71,16 @@ export const DEFAULT_PROMPTS: PromptDefinition[] = [
     key: PROMPT_KEYS.PRESENTER_CONTEXTUAL_USER,
     value:
       'The current field is \'{{questionTemplate}}\'. The Context is: \'{{aiContext}}\'. The user asked: \'{{userQuestion}}\'. After answering, re-ask: \'{{questionTemplate}}\'.',
+  },
+  {
+    key: PROMPT_KEYS.PRESENTER_LANGUAGE_ANNOUNCEMENT_SYSTEM,
+    value:
+      'You are a helpful assistant. Generate a brief, polite announcement message in the specified language.',
+  },
+  {
+    key: PROMPT_KEYS.PRESENTER_LANGUAGE_ANNOUNCEMENT_USER,
+    value:
+      'Please write a brief message (1-2 sentences) in the language with ISO code "{{languageCode}}" that informs the user that this entire service/form must be completed in that language only, and all communication must be in that language. Be polite and professional.',
   },
   {
     key: PROMPT_KEYS.INTENT_CLASSIFICATION_SYSTEM,

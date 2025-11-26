@@ -62,10 +62,35 @@ export class ConversationService {
 
     // Service is selected - proceed with normal blueprint flow
     const blueprint = this.blueprintService.getBlueprint(conversation.blueprintId);
+    const languageConfig = blueprint.languageConfig;
     
     // Determine user's intent
     const currentField = this.findFieldById(blueprint, conversation.currentFieldId!);
-    const intentClassification = await this.interpreterService.classifyIntent(userText, currentField);
+    const intentClassification = await this.interpreterService.classifyIntent(
+      userText,
+      currentField,
+      languageConfig,
+    );
+    
+    // Check for language violations first (applies to all intents in strict mode)
+    if (intentClassification.isLanguageViolation) {
+      const violationMessage = intentClassification.languageViolationMessage || 
+        `Please communicate in ${languageConfig?.defaultLanguage} only.`;
+      
+      this.appendMessage(conversation, 'system', violationMessage);
+      await this.em.flush();
+      
+      this.logger.log(
+        `[handleMessage] Language violation detected during intent classification`,
+      );
+      
+      return {
+        conversationId: conversation.id,
+        text: violationMessage,
+        isComplete: false,
+        data: conversation.data,
+      };
+    }
     
     // Branch based on intent
     if (intentClassification.intent === 'QUESTION') {
@@ -133,9 +158,13 @@ export class ConversationService {
     userText: string,
     currentField: any,
   ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+    const blueprint = this.blueprintService.getBlueprint(conversation.blueprintId!);
+    const languageConfig = blueprint.languageConfig;
+    
     const responseText = await this.presenterService.generateContextualResponse(
       currentField,
       userText,
+      languageConfig,
     );
     
     this.appendMessage(conversation, 'system', responseText);
@@ -159,11 +188,45 @@ export class ConversationService {
     currentField: any,
     blueprint: ServiceBlueprint,
   ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
+    const languageConfig = blueprint.languageConfig;
+    
     // Extract data from user's message
-    const extractedData = await this.interpreterService.extractData(
+    const extractionResult = await this.interpreterService.extractData(
       [currentField],
       userText,
+      languageConfig,
+      conversation.currentLanguage,
     );
+    
+    // Check for language violations first
+    if (extractionResult.isLanguageViolation) {
+      const violationMessage = extractionResult.languageViolationMessage || 
+        `Please communicate in ${languageConfig?.defaultLanguage} only.`;
+      
+      this.appendMessage(conversation, 'system', violationMessage);
+      await this.em.flush();
+      
+      this.logger.log(
+        `[handleAnswerProvision] Language violation detected - Expected: ${languageConfig?.defaultLanguage}, User spoke: ${extractionResult.userMessageLanguage}`,
+      );
+      
+      return {
+        conversationId: conversation.id,
+        text: violationMessage,
+        isComplete: false,
+        data: conversation.data,
+      };
+    }
+    
+    // Update current language if detected (for adaptive mode or first message)
+    if (extractionResult.userMessageLanguage && !conversation.currentLanguage) {
+      conversation.currentLanguage = extractionResult.userMessageLanguage;
+      this.logger.log(
+        `[handleAnswerProvision] Detected user language: ${extractionResult.userMessageLanguage}`,
+      );
+    }
+    
+    const extractedData = extractionResult.data;
     
     // Validate the extracted data
     const fieldValue = extractedData[currentField.id];
@@ -180,6 +243,8 @@ export class ConversationService {
       const errorResponse = await this.presenterService.generateErrorResponse(
         currentField,
         userText,
+        undefined,
+        languageConfig,
       );
       
       this.appendMessage(conversation, 'system', errorResponse);
@@ -287,6 +352,15 @@ export class ConversationService {
     }
 
     const blueprint = this.blueprintService.getBlueprint(conversation.blueprintId);
+    const languageConfig = blueprint.languageConfig;
+    
+    // If strict language mode, announce the language requirement first
+    if (languageConfig?.mode === 'strict') {
+      const languageAnnouncement = await this.presenterService.getLanguageRequirementAnnouncement(
+        languageConfig.defaultLanguage,
+      );
+      this.appendMessage(conversation, 'system', languageAnnouncement);
+    }
     
     // Execute onStart hooks
     if (blueprint.hooks.onStart && blueprint.hooks.onStart.length > 0) {
@@ -322,7 +396,7 @@ export class ConversationService {
       conversation.currentFieldId = nextStep.nextFieldId;
       
       const field = this.findFieldById(blueprint, nextStep.nextFieldId);
-      const questionText = await this.presenterService.generateQuestion(field);
+      const questionText = await this.presenterService.generateQuestion(field, languageConfig);
       
       this.appendMessage(conversation, 'system', questionText);
       await this.em.flush();
@@ -374,7 +448,8 @@ export class ConversationService {
     
     if (nextStep.nextFieldId) {
       const nextField = this.findFieldById(blueprint, nextStep.nextFieldId);
-      return await this.presenterService.generateQuestion(nextField);
+      const languageConfig = blueprint.languageConfig;
+      return await this.presenterService.generateQuestion(nextField, languageConfig);
     }
     
     return this.presenterService.getFallbackMessage();
