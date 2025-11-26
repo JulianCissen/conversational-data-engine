@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PluginContext, PluginResult, PluginHook } from '@conversational-data-engine/plugin-builder';
 import { PluginConfig, loadAndValidatePluginConfig } from './plugin.config';
+import { ServiceBlueprint, PluginConfig as BlueprintPluginConfig } from '../../modules/blueprint/interfaces/blueprint.interface';
+import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -22,6 +24,16 @@ interface LoadedPlugin {
   metadata: PluginMetadata;
   instance: PluginHook;
 }
+
+/**
+ * Zod schema for validating plugin manifest (plugin.json) structure.
+ */
+const PluginMetadataSchema = z.object({
+  id: z.string().min(1, 'Plugin id is required'),
+  name: z.string().min(1, 'Plugin name is required'),
+  version: z.string().min(1, 'Plugin version is required'),
+  entry: z.string().min(1, 'Plugin entry file is required'),
+});
 
 /**
  * Service responsible for loading and executing plugins.
@@ -59,61 +71,105 @@ export class PluginManagerService implements OnModuleInit {
    * Scan the plugins directory and load all valid plugins.
    */
   private async loadPlugins(): Promise<void> {
-    if (!fs.existsSync(this.config.pluginsDirectory)) {
-      this.logger.warn(
-        `Plugins directory does not exist: ${this.config.pluginsDirectory}`,
-      );
-      return;
-    }
+    const directoryAccessible = await this.checkPluginDirectoryAccessible();
+    if (!directoryAccessible) return;
 
-    const entries = fs.readdirSync(this.config.pluginsDirectory, {
-      withFileTypes: true,
-    });
-    const pluginDirs = entries.filter((entry) => entry.isDirectory());
-
+    const pluginDirs = await this.getPluginDirectories();
     for (const dir of pluginDirs) {
-      const pluginPath = path.join(this.config.pluginsDirectory, dir.name);
-      await this.loadPlugin(pluginPath);
+      await this.loadPlugin(dir);
     }
 
     this.logger.log(`Loaded ${this.plugins.size} plugin(s)`);
   }
 
   /**
-   * Load a single plugin from a directory.
-   * Expects a plugin.json manifest and the specified entry file.
+   * Check if the plugins directory is accessible.
+   * @returns True if accessible, false otherwise
    */
-  private async loadPlugin(pluginPath: string): Promise<void> {
+  private async checkPluginDirectoryAccessible(): Promise<boolean> {
     try {
-      const manifestPath = path.join(pluginPath, 'plugin.json');
-
-      if (!fs.existsSync(manifestPath)) {
-        this.logger.warn(
-          `Skipping plugin: No plugin.json found in ${pluginPath}`,
-        );
-        return;
-      }
-
-      const manifest: PluginMetadata = JSON.parse(
-        fs.readFileSync(manifestPath, 'utf-8'),
+      await fs.promises.access(this.config.pluginsDirectory);
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `Plugins directory is not accessible: ${this.config.pluginsDirectory}. Plugins will be disabled.`,
       );
+      return false;
+    }
+  }
 
-      if (!manifest.id || !manifest.entry) {
+  /**
+   * Get all plugin directories within the configured plugins directory.
+   * @returns Array of plugin directory paths
+   */
+  private async getPluginDirectories(): Promise<string[]> {
+    const entries = await fs.promises.readdir(this.config.pluginsDirectory, {
+      withFileTypes: true,
+    });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(this.config.pluginsDirectory, entry.name));
+  }
+
+  /**
+   * Check if a file exists and is accessible.
+   * @param filePath Path to the file to check
+   * @param errorMessage Custom error message to log if file is not accessible
+   * @returns True if file exists and is accessible, false otherwise
+   */
+  private async checkFileExists(
+    filePath: string,
+    errorMessage: string,
+  ): Promise<boolean> {
+    try {
+      await fs.promises.access(filePath);
+      return true;
+    } catch (error) {
+      this.logger.warn(errorMessage);
+      return false;
+    }
+  }
+
+  /**
+   * Load and validate the plugin manifest file.
+   * @param manifestPath Path to the plugin.json file
+   * @returns Parsed manifest metadata or null if invalid
+   */
+  private async loadPluginManifest(
+    manifestPath: string,
+  ): Promise<PluginMetadata | null> {
+    try {
+      const manifestContent = await fs.promises.readFile(
+        manifestPath,
+        'utf-8',
+      );
+      const manifestJson = JSON.parse(manifestContent);
+      
+      // Validate with Zod schema
+      const manifest = PluginMetadataSchema.parse(manifestJson);
+      return manifest;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
         this.logger.warn(
-          `Skipping plugin: Invalid manifest in ${manifestPath}`,
+          `Invalid manifest at ${manifestPath}: ${error.issues.map(e => e.message).join(', ')}`,
         );
-        return;
-      }
-
-      const entryPath = path.join(pluginPath, manifest.entry);
-
-      if (!fs.existsSync(entryPath)) {
+      } else {
         this.logger.warn(
-          `Skipping plugin ${manifest.id}: Entry file not found at ${entryPath}`,
+          `Failed to parse manifest at ${manifestPath}: ${error.message}`,
         );
-        return;
       }
+      return null;
+    }
+  }
 
+  /**
+   * Import a plugin module from the entry file path.
+   * Handles dynamic import with proper file:// URL conversion for Windows compatibility.
+   * @param entryPath Absolute path to the plugin entry file
+   * @returns Plugin instance or null if import fails
+   */
+  private async importPluginModule(entryPath: string): Promise<PluginHook | null> {
+    try {
       // Convert to file:// URL for dynamic import (required on Windows)
       const fileUrl = new URL(`file:///${entryPath.replace(/\\/g, '/')}`).href;
 
@@ -131,6 +187,46 @@ export class PluginManagerService implements OnModuleInit {
         pluginInstance = pluginInstance.default;
       }
 
+      return pluginInstance;
+    } catch (error) {
+      this.logger.error(
+        `Failed to import plugin module from ${entryPath}: ${error.message}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Load a single plugin from a directory.
+   * Expects a plugin.json manifest and the specified entry file.
+   */
+  private async loadPlugin(pluginPath: string): Promise<void> {
+    try {
+      // Check manifest file exists
+      const manifestPath = path.join(pluginPath, 'plugin.json');
+      const manifestExists = await this.checkFileExists(
+        manifestPath,
+        `Skipping plugin: No plugin.json found in ${pluginPath}`,
+      );
+      if (!manifestExists) return;
+
+      // Load and validate manifest
+      const manifest = await this.loadPluginManifest(manifestPath);
+      if (!manifest) return;
+
+      // Check entry file exists
+      const entryPath = path.join(pluginPath, manifest.entry);
+      const entryExists = await this.checkFileExists(
+        entryPath,
+        `Skipping plugin ${manifest.id}: Entry file not found at ${entryPath}`,
+      );
+      if (!entryExists) return;
+
+      // Import plugin module
+      const pluginInstance = await this.importPluginModule(entryPath);
+      if (!pluginInstance) return;
+
+      // Register plugin
       this.plugins.set(manifest.id, {
         metadata: manifest,
         instance: pluginInstance,
@@ -152,7 +248,7 @@ export class PluginManagerService implements OnModuleInit {
   async executeStart(
     pluginInstanceIds: string[],
     context: PluginContext,
-    blueprint: any,
+    blueprint: ServiceBlueprint,
   ): Promise<PluginResult> {
     return this.executeHook('onStart', pluginInstanceIds, context, blueprint);
   }
@@ -165,12 +261,12 @@ export class PluginManagerService implements OnModuleInit {
   async executeFieldValidated(
     pluginInstanceIds: string[],
     context: PluginContext,
-    blueprint: any,
+    blueprint: ServiceBlueprint,
   ): Promise<PluginResult> {
     // Filter plugins based on triggerOnField configuration
     const filteredInstanceIds = pluginInstanceIds.filter((instanceId) => {
       const pluginConfig = blueprint.plugins.find(
-        (p: any) => (p.instanceId || p.id) === instanceId,
+        (p) => (p.instanceId || p.id) === instanceId,
       );
       
       if (!pluginConfig) return true; // Execute if config not found
@@ -192,9 +288,73 @@ export class PluginManagerService implements OnModuleInit {
   async executeConversationComplete(
     pluginInstanceIds: string[],
     context: PluginContext,
-    blueprint: any,
+    blueprint: ServiceBlueprint,
   ): Promise<PluginResult> {
     return this.executeHook('onConversationComplete', pluginInstanceIds, context, blueprint);
+  }
+
+  /**
+   * Get a plugin instance by its instance ID from the blueprint.
+   * @param instanceId The instance ID to look up
+   * @param blueprint The service blueprint containing plugin configurations
+   * @returns Object containing plugin config and loaded plugin, or null if not found
+   */
+  private getPluginInstance(
+    instanceId: string,
+    blueprint: ServiceBlueprint,
+  ): { config: BlueprintPluginConfig; plugin: LoadedPlugin } | null {
+    // Find the plugin config by instanceId or id
+    const pluginConfig = blueprint.plugins.find(
+      (p) => (p.instanceId || p.id) === instanceId,
+    );
+
+    if (!pluginConfig) {
+      this.logger.error(`Plugin instance not found in blueprint: ${instanceId}`);
+      return null;
+    }
+
+    // Get the actual plugin by its type id
+    const plugin = this.plugins.get(pluginConfig.id);
+
+    if (!plugin) {
+      this.logger.error(`Plugin type not found: ${pluginConfig.id}`);
+      return null;
+    }
+
+    return { config: pluginConfig, plugin };
+  }
+
+  /**
+   * Execute a specific hook on a single plugin instance.
+   * @param hookName The name of the hook to execute
+   * @param instanceId The plugin instance ID
+   * @param pluginConfig The plugin configuration from blueprint
+   * @param plugin The loaded plugin instance
+   * @param context The plugin execution context
+   * @returns Plugin result or null if hook doesn't exist
+   */
+  private async executePluginHook(
+    hookName: string,
+    instanceId: string,
+    pluginConfig: BlueprintPluginConfig,
+    plugin: LoadedPlugin,
+    context: PluginContext,
+  ): Promise<PluginResult | null> {
+    const hookFn = plugin.instance[hookName];
+
+    if (typeof hookFn !== 'function') {
+      this.logger.debug(
+        `Plugin instance ${instanceId} (${pluginConfig.id}) does not implement ${hookName}, skipping`,
+      );
+      return null;
+    }
+
+    this.logger.debug(
+      `Executing ${hookName} for plugin instance: ${instanceId} (${pluginConfig.id})`,
+    );
+
+    const result: PluginResult = await hookFn.call(plugin.instance, context);
+    return result;
   }
 
   /**
@@ -205,7 +365,7 @@ export class PluginManagerService implements OnModuleInit {
     hookName: string,
     pluginInstanceIds: string[],
     context: PluginContext,
-    blueprint: any,
+    blueprint: ServiceBlueprint,
   ): Promise<PluginResult> {
     const mergedResult: PluginResult = {
       slotUpdates: {},
@@ -213,45 +373,29 @@ export class PluginManagerService implements OnModuleInit {
     };
 
     for (const instanceId of pluginInstanceIds) {
-      // Find the plugin config by instanceId or id
-      const pluginConfig = blueprint.plugins.find(
-        (p: any) => (p.instanceId || p.id) === instanceId,
-      );
-
-      if (!pluginConfig) {
-        const errorMessage = `Plugin instance not found in blueprint: ${instanceId}`;
-        this.logger.error(errorMessage);
-        throw new Error(errorMessage);
+      // Get plugin instance and config
+      const pluginData = this.getPluginInstance(instanceId, blueprint);
+      if (!pluginData) {
+        throw new Error(`Failed to retrieve plugin instance: ${instanceId}`);
       }
 
-      // Get the actual plugin by its type id
-      const plugin = this.plugins.get(pluginConfig.id);
-
-      if (!plugin) {
-        const errorMessage = `Plugin type not found: ${pluginConfig.id}`;
-        this.logger.error(errorMessage);
-        throw new Error(errorMessage);
-      }
-
-      const hookFn = plugin.instance[hookName];
-
-      if (typeof hookFn !== 'function') {
-        this.logger.debug(
-          `Plugin instance ${instanceId} (${pluginConfig.id}) does not implement ${hookName}, skipping`,
-        );
-        continue;
-      }
+      const { config: pluginConfig, plugin } = pluginData;
 
       try {
-        this.logger.debug(`Executing ${hookName} for plugin instance: ${instanceId} (${pluginConfig.id})`);
-
-        const result: PluginResult = await hookFn.call(
-          plugin.instance,
+        // Execute the hook
+        const result = await this.executePluginHook(
+          hookName,
+          instanceId,
+          pluginConfig,
+          plugin,
           context,
         );
 
+        // Skip if hook not implemented
+        if (!result) continue;
+
         // Merge slot updates
-        if (result?.slotUpdates) {
+        if (result.slotUpdates) {
           mergedResult.slotUpdates = {
             ...mergedResult.slotUpdates,
             ...result.slotUpdates,
@@ -259,7 +403,7 @@ export class PluginManagerService implements OnModuleInit {
         }
 
         // Collect metadata
-        if (result?.metadata) {
+        if (result.metadata) {
           if (!mergedResult.metadata) {
             mergedResult.metadata = {};
           }
