@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PluginContext, PluginResult, PluginHook } from '@conversational-data-engine/plugin-builder';
+import { PluginConfig, loadAndValidatePluginConfig } from './plugin.config';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -30,14 +31,19 @@ interface LoadedPlugin {
 export class PluginManagerService implements OnModuleInit {
   private readonly logger = new Logger(PluginManagerService.name);
   private readonly plugins = new Map<string, LoadedPlugin>();
-  private readonly pluginsDirectory: string;
+  private readonly config: PluginConfig;
 
   constructor(private readonly configService: ConfigService) {
-    // Default to 'plugins' directory relative to backend root
-    this.pluginsDirectory = this.configService.get<string>(
-      'PLUGINS_DIRECTORY',
-      path.resolve(process.cwd(), 'plugins'),
-    );
+    this.config = this.resolveConfig();
+  }
+
+  /**
+   * Load configuration from environment variables and validate with Zod.
+   * @returns Validated plugin configuration
+   * @throws Error if configuration is invalid
+   */
+  private resolveConfig(): PluginConfig {
+    return loadAndValidatePluginConfig(this.configService);
   }
 
   /**
@@ -45,7 +51,7 @@ export class PluginManagerService implements OnModuleInit {
    * from the configured plugins directory.
    */
   async onModuleInit() {
-    this.logger.log(`Loading plugins from: ${this.pluginsDirectory}`);
+    this.logger.log(`Loading plugins from: ${this.config.pluginsDirectory}`);
     await this.loadPlugins();
   }
 
@@ -53,20 +59,20 @@ export class PluginManagerService implements OnModuleInit {
    * Scan the plugins directory and load all valid plugins.
    */
   private async loadPlugins(): Promise<void> {
-    if (!fs.existsSync(this.pluginsDirectory)) {
+    if (!fs.existsSync(this.config.pluginsDirectory)) {
       this.logger.warn(
-        `Plugins directory does not exist: ${this.pluginsDirectory}`,
+        `Plugins directory does not exist: ${this.config.pluginsDirectory}`,
       );
       return;
     }
 
-    const entries = fs.readdirSync(this.pluginsDirectory, {
+    const entries = fs.readdirSync(this.config.pluginsDirectory, {
       withFileTypes: true,
     });
     const pluginDirs = entries.filter((entry) => entry.isDirectory());
 
     for (const dir of pluginDirs) {
-      const pluginPath = path.join(this.pluginsDirectory, dir.name);
+      const pluginPath = path.join(this.config.pluginsDirectory, dir.name);
       await this.loadPlugin(pluginPath);
     }
 
