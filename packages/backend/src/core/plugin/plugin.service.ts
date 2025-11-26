@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PluginContext, PluginResult, PluginHook } from '@conversational-data-engine/plugin-builder';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -18,27 +19,7 @@ interface PluginMetadata {
  */
 interface LoadedPlugin {
   metadata: PluginMetadata;
-  instance: any; // The actual plugin implementation (PluginHook)
-}
-
-/**
- * Context passed to plugin hooks during execution.
- */
-export interface PluginExecutionContext {
-  serviceId: string;
-  conversationId: string;
-  data: Record<string, any>;
-  fieldId?: string;
-  fieldValue?: any;
-  config: Record<string, any>;
-}
-
-/**
- * Result returned by plugin hook execution.
- */
-export interface PluginExecutionResult {
-  slotUpdates?: Record<string, any>;
-  metadata?: Record<string, any>;
+  instance: PluginHook;
 }
 
 /**
@@ -164,9 +145,9 @@ export class PluginManagerService implements OnModuleInit {
    */
   async executeStart(
     pluginInstanceIds: string[],
-    context: PluginExecutionContext,
+    context: PluginContext,
     blueprint: any,
-  ): Promise<PluginExecutionResult> {
+  ): Promise<PluginResult> {
     return this.executeHook('onStart', pluginInstanceIds, context, blueprint);
   }
 
@@ -177,9 +158,9 @@ export class PluginManagerService implements OnModuleInit {
    */
   async executeFieldValidated(
     pluginInstanceIds: string[],
-    context: PluginExecutionContext,
+    context: PluginContext,
     blueprint: any,
-  ): Promise<PluginExecutionResult> {
+  ): Promise<PluginResult> {
     // Filter plugins based on triggerOnField configuration
     const filteredInstanceIds = pluginInstanceIds.filter((instanceId) => {
       const pluginConfig = blueprint.plugins.find(
@@ -204,9 +185,9 @@ export class PluginManagerService implements OnModuleInit {
    */
   async executeConversationComplete(
     pluginInstanceIds: string[],
-    context: PluginExecutionContext,
+    context: PluginContext,
     blueprint: any,
-  ): Promise<PluginExecutionResult> {
+  ): Promise<PluginResult> {
     return this.executeHook('onConversationComplete', pluginInstanceIds, context, blueprint);
   }
 
@@ -217,10 +198,10 @@ export class PluginManagerService implements OnModuleInit {
   private async executeHook(
     hookName: string,
     pluginInstanceIds: string[],
-    context: PluginExecutionContext,
+    context: PluginContext,
     blueprint: any,
-  ): Promise<PluginExecutionResult> {
-    const mergedResult: PluginExecutionResult = {
+  ): Promise<PluginResult> {
+    const mergedResult: PluginResult = {
       slotUpdates: {},
       metadata: {},
     };
@@ -258,7 +239,7 @@ export class PluginManagerService implements OnModuleInit {
       try {
         this.logger.debug(`Executing ${hookName} for plugin instance: ${instanceId} (${pluginConfig.id})`);
 
-        const result: PluginExecutionResult = await hookFn.call(
+        const result: PluginResult = await hookFn.call(
           plugin.instance,
           context,
         );
