@@ -62,6 +62,22 @@ export class PromptService implements OnModuleInit {
   }
 
   /**
+   * Reload all prompts from the database into memory.
+   * This can be used to refresh prompts after database updates.
+   * @returns The number of prompts loaded
+   */
+  async reloadPrompts(): Promise<number> {
+    this.logger.log('Reloading prompts from database...');
+    
+    const fork = this.em.fork();
+    const prompts = await fork.find(Prompt, {});
+    this.loadPromptsIntoCache(prompts);
+    
+    this.logger.log('Prompts reloaded successfully.');
+    return prompts.length;
+  }
+
+  /**
    * Load prompts into the in-memory cache.
    * @param prompts Array of Prompt entities
    */

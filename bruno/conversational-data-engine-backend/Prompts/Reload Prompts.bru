@@ -1,0 +1,16 @@
+meta {
+  name: Reload Prompts
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:3001/prompts/reload
+  body: none
+  auth: none
+}
+
+docs {
+  Triggers a reload of all prompts from the database into memory.
+  This is useful after manually updating prompts in the database.
+}
