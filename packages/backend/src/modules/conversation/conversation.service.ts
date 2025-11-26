@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { EntityManager, EntityRepository } from '@mikro-orm/core';
 import { Conversation, Message } from './conversation.entity';
+import { LlmMessage } from '../../core/llm/llm.types';
 import { WorkflowService } from '../workflow/workflow.service';
 import { InterpreterService } from '../intelligence/interpreter.service';
 import { PresenterService } from '../intelligence/presenter.service';
@@ -48,7 +49,7 @@ export class ConversationService {
     // Handle new conversation - store welcome message first
     if (!conversationId) {
       const welcomeMessage = this.presenterService.getWelcomeMessage();
-      this.appendMessage(conversation, 'system', welcomeMessage);
+      this.appendMessage(conversation, 'ai', welcomeMessage);
     }
 
     // Append user message to history
@@ -64,12 +65,16 @@ export class ConversationService {
     const blueprint = this.blueprintService.getBlueprint(conversation.blueprintId);
     const languageConfig = blueprint.languageConfig;
     
+    // Get conversation history for context
+    const history = this.getHistory(conversation);
+    
     // Determine user's intent
     const currentField = this.findFieldById(blueprint, conversation.currentFieldId!);
     const intentClassification = await this.interpreterService.classifyIntent(
       userText,
       currentField,
       languageConfig,
+      history,
     );
     
     // Check for language violations first (applies to all intents in strict mode)
@@ -77,7 +82,7 @@ export class ConversationService {
       const violationMessage = intentClassification.languageViolationMessage || 
         `Please communicate in ${languageConfig?.defaultLanguage} only.`;
       
-      this.appendMessage(conversation, 'system', violationMessage);
+      this.appendMessage(conversation, 'ai', violationMessage);
       await this.em.flush();
       
       this.logger.log(
@@ -109,15 +114,17 @@ export class ConversationService {
     userText: string,
   ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     const availableServices = this.blueprintService.getAllBlueprints();
+    const history = this.getHistory(conversation);
     const selectionIntent = await this.interpreterService.classifyServiceSelection(
       userText,
       availableServices,
+      history,
     );
 
     // User is asking for a list of services
     if (selectionIntent === 'LIST_SERVICES') {
       const responseText = this.presenterService.formatServiceList(availableServices);
-      this.appendMessage(conversation, 'system', responseText);
+      this.appendMessage(conversation, 'ai', responseText);
       await this.em.flush();
       
       return {
@@ -131,7 +138,7 @@ export class ConversationService {
     // Intent is unclear
     if (selectionIntent === 'UNCLEAR') {
       const responseText = this.presenterService.getServiceSelectionUnclearResponse();
-      this.appendMessage(conversation, 'system', responseText);
+      this.appendMessage(conversation, 'ai', responseText);
       await this.em.flush();
       
       return {
@@ -160,14 +167,16 @@ export class ConversationService {
   ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     const blueprint = this.blueprintService.getBlueprint(conversation.blueprintId!);
     const languageConfig = blueprint.languageConfig;
+    const history = this.getHistory(conversation);
     
     const responseText = await this.presenterService.generateContextualResponse(
       currentField,
       userText,
       languageConfig,
+      history,
     );
     
-    this.appendMessage(conversation, 'system', responseText);
+    this.appendMessage(conversation, 'ai', responseText);
     await this.em.flush();
     
     return {
@@ -189,6 +198,7 @@ export class ConversationService {
     blueprint: ServiceBlueprint,
   ): Promise<{ conversationId: string; text: string; isComplete: boolean; data: Record<string, any> }> {
     const languageConfig = blueprint.languageConfig;
+    const history = this.getHistory(conversation);
     
     // Extract data from user's message
     const extractionResult = await this.interpreterService.extractData(
@@ -196,6 +206,7 @@ export class ConversationService {
       userText,
       languageConfig,
       conversation.currentLanguage,
+      history,
     );
     
     // Check for language violations first
@@ -203,7 +214,7 @@ export class ConversationService {
       const violationMessage = extractionResult.languageViolationMessage || 
         `Please communicate in ${languageConfig?.defaultLanguage} only.`;
       
-      this.appendMessage(conversation, 'system', violationMessage);
+      this.appendMessage(conversation, 'ai', violationMessage);
       await this.em.flush();
       
       this.logger.log(
@@ -245,9 +256,10 @@ export class ConversationService {
         userText,
         undefined,
         languageConfig,
+        history,
       );
       
-      this.appendMessage(conversation, 'system', errorResponse);
+      this.appendMessage(conversation, 'ai', errorResponse);
       await this.em.flush();
       
       return {
@@ -311,9 +323,9 @@ export class ConversationService {
     }
     
     // Generate appropriate response
-    const responseText = await this.generateResponse(nextStep, blueprint);
+    const responseText = await this.generateResponse(nextStep, blueprint, conversation);
 
-    this.appendMessage(conversation, 'system', responseText);
+    this.appendMessage(conversation, 'ai', responseText);
     await this.em.flush();
 
     return {
@@ -359,7 +371,7 @@ export class ConversationService {
       const languageAnnouncement = await this.presenterService.getLanguageRequirementAnnouncement(
         languageConfig.defaultLanguage,
       );
-      this.appendMessage(conversation, 'system', languageAnnouncement);
+      this.appendMessage(conversation, 'ai', languageAnnouncement);
     }
     
     // Execute onStart hooks
@@ -396,9 +408,10 @@ export class ConversationService {
       conversation.currentFieldId = nextStep.nextFieldId;
       
       const field = this.findFieldById(blueprint, nextStep.nextFieldId);
-      const questionText = await this.presenterService.generateQuestion(field, languageConfig);
+      const history = this.getHistory(conversation);
+      const questionText = await this.presenterService.generateQuestion(field, languageConfig, history);
       
-      this.appendMessage(conversation, 'system', questionText);
+      this.appendMessage(conversation, 'ai', questionText);
       await this.em.flush();
       
       return {
@@ -441,7 +454,7 @@ export class ConversationService {
   private async generateResponse(nextStep: {
     isComplete: boolean;
     nextFieldId: string | null;
-  }, blueprint: ServiceBlueprint): Promise<string> {
+  }, blueprint: ServiceBlueprint, conversation: Conversation): Promise<string> {
     if (nextStep.isComplete) {
       return this.presenterService.getCompletionMessage();
     }
@@ -449,7 +462,8 @@ export class ConversationService {
     if (nextStep.nextFieldId) {
       const nextField = this.findFieldById(blueprint, nextStep.nextFieldId);
       const languageConfig = blueprint.languageConfig;
-      return await this.presenterService.generateQuestion(nextField, languageConfig);
+      const history = this.getHistory(conversation);
+      return await this.presenterService.generateQuestion(nextField, languageConfig, history);
     }
     
     return this.presenterService.getFallbackMessage();
@@ -471,12 +485,31 @@ export class ConversationService {
   /**
    * Append a message to the conversation history
    */
-  private appendMessage(conversation: Conversation, role: 'user' | 'system', content: string): void {
+  private appendMessage(conversation: Conversation, role: 'user' | 'ai', content: string): void {
     conversation.messages.push({
       role,
       content,
       timestamp: new Date(),
     });
+  }
+
+  /**
+   * Get conversation history as LlmMessage array.
+   * @param conversation The conversation entity
+   * @param limit Optional limit on number of messages to return (most recent first)
+   * @returns Array of LlmMessages suitable for LLM context
+   */
+  private getHistory(conversation: Conversation, limit?: number): LlmMessage[] {
+    const messages = conversation.messages.map(msg => ({
+      role: msg.role,
+      content: msg.content,
+    }));
+    
+    if (limit && limit > 0) {
+      return messages.slice(-limit);
+    }
+    
+    return messages;
   }
 
   /**

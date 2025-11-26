@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FieldDefinition, JsonSchema, ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
+import { LlmMessage } from '../../core/llm/llm.types';
 import { PromptExecutionService } from './prompt-execution.service';
 import { PROMPT_KEYS } from '../../core/prompt/prompt.constants';
 
@@ -26,6 +27,7 @@ export class InterpreterService {
    * @param userMessage - Unstructured text from the user
    * @param languageConfig - Optional language configuration for enforcement
    * @param currentLanguage - Optional current conversation language
+   * @param history - Optional conversation history to include
    * @returns Promise resolving to extracted data with optional language metadata
    */
   async extractData(
@@ -33,6 +35,7 @@ export class InterpreterService {
     userMessage: string,
     languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
     currentLanguage?: string | null,
+    history: LlmMessage[] = [],
   ): Promise<{
     data: Record<string, any>;
     userMessageLanguage?: string;
@@ -50,12 +53,14 @@ export class InterpreterService {
         augmentation,
         userMessage,
         jsonSchema,
+        history,
       );
     } else {
       result = await this.promptExecutionService.executeStructuredExtraction(
         PROMPT_KEYS.INTERPRETER_SYSTEM,
         userMessage,
         jsonSchema,
+        history,
       );
     }
     
@@ -85,12 +90,14 @@ export class InterpreterService {
    * @param userText The user's message
    * @param currentField The current field being collected
    * @param languageConfig Optional language configuration for strict enforcement
+   * @param history Optional conversation history to include
    * @returns IntentClassification object with intent, reason, and optional language violation info
    */
   async classifyIntent(
     userText: string,
     currentField: FieldDefinition,
     languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
+    history: LlmMessage[] = [],
   ): Promise<IntentClassification & { isLanguageViolation?: boolean; languageViolationMessage?: string }> {
     const schema: JsonSchema = {
       type: 'object',
@@ -139,6 +146,7 @@ export class InterpreterService {
           userText: userText,
         },
         schema,
+        history,
       );
     } else {
       result = await this.promptExecutionService.executeStructuredChat(
@@ -150,6 +158,7 @@ export class InterpreterService {
           userText: userText,
         },
         schema,
+        history,
       );
     }
 
@@ -179,11 +188,13 @@ export class InterpreterService {
    * Uses LLM to match user intent to available services.
    * @param userText The user's message
    * @param services Array of available service blueprints
+   * @param history Optional conversation history to include
    * @returns The blueprint ID if matched, 'LIST_SERVICES' if asking for a list, 'UNCLEAR' if uncertain
    */
   async classifyServiceSelection(
     userText: string,
     services: ServiceBlueprint[],
+    history: LlmMessage[] = [],
   ): Promise<ServiceSelectionIntent> {
     const serviceList = this.formatServiceListForPrompt(services);
 
@@ -192,6 +203,7 @@ export class InterpreterService {
       { serviceList },
       PROMPT_KEYS.SERVICE_SELECTION_USER,
       { userText },
+      history,
     );
 
     return this.validateServiceSelection(response.trim(), services);

@@ -1,9 +1,12 @@
 import { Entity, PrimaryKey, Property, JsonType } from '@mikro-orm/core';
 import { BlueprintService } from '../blueprint/blueprint.service';
+import { LlmMessage } from '../../core/llm/llm.types';
 
-export interface Message {
-  role: 'user' | 'system';
-  content: string;
+/**
+ * Message stored in conversation history.
+ * Extends LlmMessage with timestamp for persistence.
+ */
+export interface Message extends LlmMessage {
   timestamp: Date;
 }
 
