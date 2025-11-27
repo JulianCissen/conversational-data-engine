@@ -8,6 +8,7 @@ import { ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
 import { BlueprintService } from '../blueprint/blueprint.service';
 import { PluginManagerService } from '../../core/plugin/plugin.service';
 import { ConversationService } from './conversation.service';
+import { LanguageViolationException } from '../intelligence/intelligence.exceptions';
 
 /**
  * ConversationFlowService
@@ -95,85 +96,52 @@ export class ConversationFlowService {
       conversation.currentFieldId!,
     );
 
-    const intentClassification = await this.interpreterService.classifyIntent(
-      userText,
-      currentField,
-      languageConfig,
-      history,
-    );
+    try {
+      const intentClassification = await this.interpreterService.classifyIntent(
+        userText,
+        currentField,
+        languageConfig,
+        history,
+      );
 
-    // Check for language violations first
-    const violationResponse = await this.checkLanguageViolation(
-      {
-        isLanguageViolation: intentClassification.isLanguageViolation ?? false,
-        languageViolationMessage: intentClassification.languageViolationMessage,
-      },
-      languageConfig,
-      conversation,
-    );
-    if (violationResponse) {
-      return violationResponse;
-    }
+      // Branch based on intent
+      if (intentClassification.intent === 'QUESTION') {
+        return await this.handleClarificationQuestion(
+          conversation,
+          userText,
+          currentField,
+        );
+      }
 
-    // Branch based on intent
-    if (intentClassification.intent === 'QUESTION') {
-      return await this.handleClarificationQuestion(
+      // User is providing an answer
+      return await this.handleAnswerProvision(
         conversation,
         userText,
         currentField,
+        blueprint,
       );
+    } catch (error) {
+      if (error instanceof LanguageViolationException) {
+        this.conversationService.appendMessage(
+          conversation,
+          'ai',
+          error.message,
+        );
+        await this.conversationService.persistConversation();
+
+        this.logger.log(
+          `[collectField] Language violation - Expected: ${error.expectedLanguage}, User spoke: ${error.detectedLanguage}`,
+        );
+
+        return {
+          conversationId: conversation.id,
+          text: error.message,
+          isComplete: false,
+          data: conversation.data,
+        };
+      }
+      throw error;
     }
-
-    // User is providing an answer
-    return await this.handleAnswerProvision(
-      conversation,
-      userText,
-      currentField,
-      blueprint,
-    );
-  }
-
-  /**
-   * Check for language violations and return response if violated
-   */
-  private async checkLanguageViolation(
-    intentClassification: {
-      isLanguageViolation: boolean;
-      languageViolationMessage?: string;
-    },
-    languageConfig: ServiceBlueprint['languageConfig'],
-    conversation: Conversation,
-  ): Promise<{
-    conversationId: string;
-    text: string;
-    isComplete: boolean;
-    data: Record<string, any>;
-  } | null> {
-    if (!intentClassification.isLanguageViolation) {
-      return null;
-    }
-
-    const violationMessage =
-      intentClassification.languageViolationMessage ||
-      `Please communicate in ${languageConfig?.defaultLanguage} only.`;
-
-    this.conversationService.appendMessage(
-      conversation,
-      'ai',
-      violationMessage,
-    );
-    await this.conversationService.persistConversation();
-
-    this.logger.log(
-      `[handleBlueprintFlow] Language violation detected during intent classification`,
-    );
-
-    return {
-      conversationId: conversation.id,
-      text: violationMessage,
-      isComplete: false,
-      data: conversation.data,
-    };
   }
 
   /**
@@ -370,104 +338,110 @@ export class ConversationFlowService {
     data?: Record<string, any>;
     fieldValue?: string | number | boolean | Date;
   }> {
-    // Extract data from user's message
-    const extractionResult = await this.interpreterService.extractData(
-      [currentField],
-      userText,
-      languageConfig,
-      conversation.currentLanguage,
-      history,
-    );
-
-    // Check for language violations
-    if (extractionResult.isLanguageViolation) {
-      const violationMessage =
-        extractionResult.languageViolationMessage ||
-        `Please communicate in ${languageConfig?.defaultLanguage} only.`;
-
-      this.conversationService.appendMessage(
-        conversation,
-        'ai',
-        violationMessage,
-      );
-      await this.conversationService.persistConversation();
-
-      this.logger.log(
-        `[extractAndValidateData] Language violation - Expected: ${languageConfig?.defaultLanguage}, User spoke: ${extractionResult.userMessageLanguage}`,
-      );
-
-      return {
-        response: {
-          conversationId: conversation.id,
-          text: violationMessage,
-          isComplete: false,
-          data: conversation.data,
-        },
-      };
-    }
-
-    // Update current language if detected
-    if (extractionResult.userMessageLanguage && !conversation.currentLanguage) {
-      conversation.currentLanguage = extractionResult.userMessageLanguage;
-      this.logger.log(
-        `[extractAndValidateData] Detected user language: ${extractionResult.userMessageLanguage}`,
-      );
-    }
-
-    const extractedData = extractionResult.data;
-    const fieldValue: string | number | boolean | Date | undefined =
-      extractedData[currentField.id] as
-        | string
-        | number
-        | boolean
-        | Date
-        | undefined;
-
-    // Validate the extracted data
-    const isValid = this.workflowService.validateValue(
-      fieldValue,
-      currentField,
-    );
-
-    this.logger.debug(
-      `[extractAndValidateData] Validation for '${currentField.id}': ${isValid ? 'PASS' : 'FAIL'}`,
-    );
-
-    // If invalid, generate error response
-    if (!isValid) {
-      this.logger.debug(
-        `[extractAndValidateData] Validation failed - Expected: ${JSON.stringify(currentField.validation)}, Received: ${JSON.stringify(fieldValue)}`,
-      );
-
-      const errorResponse = await this.presenterService.generateErrorResponse(
-        currentField,
+    try {
+      // Extract data from user's message
+      const extractionResult = await this.interpreterService.extractData(
+        [currentField],
         userText,
-        undefined,
         languageConfig,
         history,
       );
 
-      this.conversationService.appendMessage(conversation, 'ai', errorResponse);
-      await this.conversationService.persistConversation();
+      // Update current language if detected
+      if (
+        extractionResult.userMessageLanguage &&
+        !conversation.currentLanguage
+      ) {
+        conversation.currentLanguage = extractionResult.userMessageLanguage;
+        this.logger.log(
+          `[extractAndValidateData] Detected user language: ${extractionResult.userMessageLanguage}`,
+        );
+      }
+
+      const extractedData = extractionResult.data;
+      const fieldValue: string | number | boolean | Date | undefined =
+        extractedData[currentField.id] as
+          | string
+          | number
+          | boolean
+          | Date
+          | undefined;
+
+      // Validate the extracted data
+      const isValid = this.workflowService.validateValue(
+        fieldValue,
+        currentField,
+      );
+
+      this.logger.debug(
+        `[extractAndValidateData] Validation for '${currentField.id}': ${isValid ? 'PASS' : 'FAIL'}`,
+      );
+
+      // If invalid, generate error response
+      if (!isValid) {
+        this.logger.debug(
+          `[extractAndValidateData] Validation failed - Expected: ${JSON.stringify(currentField.validation)}, Received: ${JSON.stringify(fieldValue)}`,
+        );
+
+        const errorResponse = await this.presenterService.generateErrorResponse(
+          currentField,
+          userText,
+          undefined,
+          languageConfig,
+          history,
+        );
+
+        this.conversationService.appendMessage(
+          conversation,
+          'ai',
+          errorResponse,
+        );
+        await this.conversationService.persistConversation();
+
+        return {
+          response: {
+            conversationId: conversation.id,
+            text: errorResponse,
+            isComplete: false,
+            data: conversation.data,
+          },
+        };
+      }
+
+      this.logger.log(
+        `[extractAndValidateData] Validation passed, data ready for update`,
+      );
 
       return {
-        response: {
-          conversationId: conversation.id,
-          text: errorResponse,
-          isComplete: false,
-          data: conversation.data,
-        },
+        data: extractedData,
+        fieldValue,
       };
+    } catch (error) {
+      if (error instanceof LanguageViolationException) {
+        // Handle language violation
+        this.conversationService.appendMessage(
+          conversation,
+          'ai',
+          error.message,
+        );
+        await this.conversationService.persistConversation();
+
+        this.logger.log(
+          `[extractAndValidateData] Language violation - Expected: ${error.expectedLanguage}, User spoke: ${error.detectedLanguage}`,
+        );
+
+        return {
+          response: {
+            conversationId: conversation.id,
+            text: error.message,
+            isComplete: false,
+            data: conversation.data,
+          },
+        };
+      }
+      // Re-throw other errors
+      throw error;
     }
-
-    this.logger.log(
-      `[extractAndValidateData] Validation passed, data ready for update`,
-    );
-
-    return {
-      data: extractedData,
-      fieldValue,
-    };
   }
 
   /**

@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   FieldDefinition,
-  JsonSchema,
   ServiceBlueprint,
 } from '../blueprint/interfaces/blueprint.interface';
 import { LlmMessage } from '../../core/llm/llm.types';
 import { PromptExecutionService } from './prompt-execution.service';
 import { PROMPT_KEYS } from '../../core/prompt/prompt.constants';
+import { SystemMessageBuilder } from './system-message.builder';
+import { PromptService } from '../../core/prompt/prompt.service';
+import { TemplateService } from '../../core/template/template.service';
+import { LanguageViolationException } from './intelligence.exceptions';
 
 export type UserIntent = 'ANSWER' | 'QUESTION';
 export type ServiceSelectionIntent =
@@ -19,12 +22,43 @@ export interface IntentClassification {
   reason: string;
 }
 
+/**
+ * JSON Schema definitions for structured LLM responses.
+ * Implemented as functions to prevent accidental mutations.
+ */
+function getIntentClassificationSchema() {
+  return {
+    intent: {
+      type: 'string',
+      enum: ['ANSWER', 'QUESTION'],
+      description:
+        'Whether the user is providing an answer or asking a clarifying question',
+    },
+    reason: {
+      type: 'string',
+      description:
+        'Brief explanation of why the message was classified as such',
+    },
+  };
+}
+
+function getServiceSelectionSchemaBase() {
+  return {
+    reason: {
+      type: 'string',
+      description: 'Brief explanation of why this selection was made',
+    },
+  };
+}
+
 @Injectable()
 export class InterpreterService {
   private readonly logger = new Logger(InterpreterService.name);
 
   constructor(
     private readonly promptExecutionService: PromptExecutionService,
+    private readonly promptService: PromptService,
+    private readonly templateService: TemplateService,
   ) {}
 
   /**
@@ -33,69 +67,48 @@ export class InterpreterService {
    * @param fields - Array of field definitions from the blueprint
    * @param userMessage - Unstructured text from the user
    * @param languageConfig - Optional language configuration for enforcement
-   * @param currentLanguage - Optional current conversation language
    * @param history - Optional conversation history to include
-   * @returns Promise resolving to extracted data with optional language metadata
+   * @returns Promise resolving to extracted data with language metadata
+   * @throws LanguageViolationException if strict mode is enabled and user violates language rules
    */
-  async extractData(
+  public async extractData(
     fields: FieldDefinition[],
     userMessage: string,
     languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
-    currentLanguage?: string | null,
     history: LlmMessage[] = [],
   ): Promise<{
     data: Record<string, any>;
     userMessageLanguage?: string;
-    isLanguageViolation?: boolean;
-    languageViolationMessage?: string;
   }> {
-    const jsonSchema = this.buildJsonSchema(fields, languageConfig);
+    const dataProperties = this.buildDataProperties(fields);
 
-    let result: Record<string, any>;
+    const schemaProperties = {
+      data: {
+        type: 'object',
+        properties: dataProperties,
+        description: 'Extracted field data from user message',
+      },
+    };
 
-    if (languageConfig?.mode === 'strict') {
-      const augmentation = `CRITICAL LANGUAGE REQUIREMENT: This conversation MUST be conducted in ${languageConfig.defaultLanguage} only. The user is required to communicate in ${languageConfig.defaultLanguage}. If they speak another language, you must detect this violation.`;
-      result =
-        await this.promptExecutionService.executeStructuredExtractionWithAugmentedSystem(
-          PROMPT_KEYS.INTERPRETER_SYSTEM,
-          augmentation,
-          userMessage,
-          jsonSchema,
-          history,
-        );
-    } else {
-      result = await this.promptExecutionService.executeStructuredExtraction(
-        PROMPT_KEYS.INTERPRETER_SYSTEM,
-        userMessage,
-        jsonSchema,
-        history,
-      );
-    }
+    const result = await this.executeStructuredTask({
+      systemPromptKey: PROMPT_KEYS.INTERPRETER_SYSTEM,
+      schema: {
+        properties: schemaProperties,
+        required: ['data'],
+      },
+      history,
+      userMessage,
+      languageConfig,
+    });
 
     this.logger.debug(
       `[extractData] LLM extraction result: ${JSON.stringify(result)}`,
     );
 
-    // If language enforcement is enabled, check for violations
-    if (
-      languageConfig?.mode === 'strict' &&
-      result.isLanguageViolation === true
-    ) {
-      return {
-        data: {},
-        userMessageLanguage: result.userMessageLanguage as string | undefined,
-        isLanguageViolation: true,
-        languageViolationMessage: result.languageViolationMessage as
-          | string
-          | undefined,
-      };
-    }
-
-    // Return extracted data and language detection for adaptive mode
+    // Return extracted data and language detection
     return {
-      data: (result.data as Record<string, any>) || result,
+      data: (result.data as Record<string, any>) || {},
       userMessageLanguage: result.userMessageLanguage as string | undefined,
-      isLanguageViolation: false,
     };
   }
 
@@ -106,108 +119,40 @@ export class InterpreterService {
    * @param currentField The current field being collected
    * @param languageConfig Optional language configuration for strict enforcement
    * @param history Optional conversation history to include
-   * @returns IntentClassification object with intent, reason, and optional language violation info
+   * @returns IntentClassification object with intent and reason
+   * @throws LanguageViolationException if strict mode is enabled and user violates language rules
    */
-  async classifyIntent(
+  public async classifyIntent(
     userText: string,
     currentField: FieldDefinition,
     languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
     history: LlmMessage[] = [],
-  ): Promise<
-    IntentClassification & {
-      isLanguageViolation?: boolean;
-      languageViolationMessage?: string;
-    }
-  > {
-    const schema: JsonSchema = {
-      type: 'object',
-      properties: {
-        intent: {
-          type: 'string',
-          enum: ['ANSWER', 'QUESTION'],
-          description:
-            'Whether the user is providing an answer or asking a clarifying question',
-        },
-        reason: {
-          type: 'string',
-          description:
-            'Brief explanation of why the message was classified as such',
-        },
+  ): Promise<IntentClassification> {
+    const result = await this.executeStructuredTask({
+      systemPromptKey: PROMPT_KEYS.INTENT_CLASSIFICATION,
+      context: {
+        questionTemplate: currentField.questionTemplate,
+        aiContext: currentField.aiContext,
       },
-      required: ['intent', 'reason'],
-      additionalProperties: false,
-    };
-
-    // Add language violation detection for strict mode
-    if (languageConfig?.mode === 'strict') {
-      (schema.properties as Record<string, any>).userMessageLanguage = {
-        type: 'string',
-        description: `The ISO language code of the language the user is speaking (e.g., 'en', 'nl', 'de', 'fr')`,
-      };
-      (schema.properties as Record<string, any>).isLanguageViolation = {
-        type: 'boolean',
-        description: `True if the user is NOT speaking ${languageConfig.defaultLanguage}. Ignore short responses like 'yes', 'no', 'ok'.`,
-      };
-      (schema.properties as Record<string, any>).languageViolationMessage = {
-        type: 'string',
-        description: `If isLanguageViolation is true, provide a polite message in ${languageConfig.defaultLanguage} asking the user to communicate in ${languageConfig.defaultLanguage} only.`,
-      };
-    }
-
-    let result: any;
-
-    if (languageConfig?.mode === 'strict') {
-      const augmentation = `CRITICAL LANGUAGE REQUIREMENT: This conversation MUST be conducted in ${languageConfig.defaultLanguage} only. The user is required to communicate in ${languageConfig.defaultLanguage} for all messages, including questions. If they speak another language, you must detect this violation.`;
-      result =
-        await this.promptExecutionService.executeStructuredChatWithAugmentedSystem(
-          PROMPT_KEYS.INTENT_CLASSIFICATION_SYSTEM,
-          augmentation,
-          PROMPT_KEYS.INTENT_CLASSIFICATION_USER,
-          {
-            questionTemplate: currentField.questionTemplate,
-            aiContext: currentField.aiContext,
-            userText: userText,
-          },
-          schema,
-          history,
-        );
-    } else {
-      result = await this.promptExecutionService.executeStructuredChat(
-        PROMPT_KEYS.INTENT_CLASSIFICATION_SYSTEM,
-        PROMPT_KEYS.INTENT_CLASSIFICATION_USER,
-        {
-          questionTemplate: currentField.questionTemplate,
-          aiContext: currentField.aiContext,
-          userText: userText,
-        },
-        schema,
-        history,
-      );
-    }
+      schema: {
+        properties: getIntentClassificationSchema(),
+        required: ['intent', 'reason'],
+      },
+      history,
+      userMessage: userText,
+      languageConfig,
+    });
 
     // Type guard for result
     const typedResult = result as {
       intent?: string;
       reason?: string;
-      isLanguageViolation?: boolean;
-      languageViolationMessage?: string;
     };
 
-    const classification: IntentClassification & {
-      isLanguageViolation?: boolean;
-      languageViolationMessage?: string;
-    } = {
+    const classification: IntentClassification = {
       intent: this.validateIntent(typedResult.intent || 'ANSWER'),
       reason: typedResult.reason || 'No reason provided',
     };
-
-    // Add language violation info if present
-    if (typedResult.isLanguageViolation) {
-      classification.isLanguageViolation =
-        typedResult.isLanguageViolation as boolean;
-      classification.languageViolationMessage =
-        typedResult.languageViolationMessage;
-    }
 
     // Log if the message is not classified as a valid answer
     if (classification.intent !== 'ANSWER') {
@@ -227,133 +172,168 @@ export class InterpreterService {
    * @param history Optional conversation history to include
    * @returns The blueprint ID if matched, 'LIST_SERVICES' if asking for a list, 'UNCLEAR' if uncertain
    */
-  async classifyServiceSelection(
+  public async classifyServiceSelection(
     userText: string,
     services: ServiceBlueprint[],
     history: LlmMessage[] = [],
   ): Promise<ServiceSelectionIntent> {
     const serviceList = this.formatServiceListForPrompt(services);
 
-    const response =
-      await this.promptExecutionService.executeChatWithSystemTemplate(
-        PROMPT_KEYS.SERVICE_SELECTION_SYSTEM,
-        { serviceList },
-        PROMPT_KEYS.SERVICE_SELECTION_USER,
-        { userText },
-        history,
-      );
+    // Build schema for structured output with dynamic enum
+    const properties = {
+      selection: {
+        type: 'string',
+        description:
+          'The service ID if matched, "LIST_SERVICES" if user wants to see all services, or "UNCLEAR" if uncertain',
+        enum: [
+          'LIST_SERVICES',
+          'UNCLEAR',
+          ...services.map((s) => s.id),
+        ] as string[],
+      },
+      ...getServiceSelectionSchemaBase(),
+    };
 
-    return this.validateServiceSelection(response.trim(), services);
+    const result = await this.executeStructuredTask({
+      systemPromptKey: PROMPT_KEYS.SERVICE_SELECTION,
+      context: {
+        serviceList,
+      },
+      schema: {
+        properties,
+        required: ['selection', 'reason'],
+      },
+      history,
+      userMessage: userText,
+    });
+
+    const typedResult = result as {
+      selection?: string;
+      reason?: string;
+    };
+
+    const selection = typedResult.selection || 'UNCLEAR';
+
+    this.logger.debug(
+      `[classifyServiceSelection] Selected: ${selection}, Reason: ${typedResult.reason}`,
+    );
+
+    return this.validateServiceSelection(selection, services);
   }
 
   /**
-   * Builds a JSON Schema object from field definitions.
-   * Enhances the schema with field context for better LLM understanding.
-   *
-   * @param fields - Array of field definitions
-   * @param languageConfig - Optional language configuration to enable language detection
-   * @returns JSON Schema object
+   * Builds schema properties from field definitions for data extraction.
+   * Enhances each field's validation schema with context from questionTemplate and aiContext.
+   * @param fields Array of field definitions from the blueprint
+   * @returns Record of schema properties keyed by field ID
    */
-  private buildJsonSchema(
-    fields: FieldDefinition[],
-    languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
-  ): JsonSchema {
-    const jsonSchema: JsonSchema = {
-      type: 'object',
-      properties: {},
-      required: [], // Allow partial extraction
-      additionalProperties: false,
-    };
+  private buildDataProperties(fields: FieldDefinition[]): Record<string, any> {
+    const dataProperties: Record<string, any> = {};
 
-    // If language config is provided, wrap the data fields and add language detection
-    if (languageConfig) {
-      const dataProperties: Record<string, any> = {};
+    for (const field of fields) {
+      // Start with the field's validation schema
+      const propertySchema = { ...field.validation };
 
-      for (const field of fields) {
-        // Start with the field's validation schema
-        const propertySchema = { ...field.validation };
+      // Enhance with context: inject questionTemplate or aiContext into description
+      const contextParts: string[] = [];
 
-        // Enhance with context: inject questionTemplate or aiContext into description
-        const contextParts: string[] = [];
-
-        if (field.questionTemplate) {
-          contextParts.push(`Question: ${field.questionTemplate}`);
-        }
-
-        if (field.aiContext) {
-          contextParts.push(`Context: ${field.aiContext}`);
-        }
-
-        if (contextParts.length > 0) {
-          // Prepend our context to any existing description
-          const existingDescription =
-            (propertySchema.description as string | undefined) || '';
-          const enhancedDescription =
-            contextParts.join(' | ') +
-            (existingDescription ? ` | ${existingDescription}` : '');
-          propertySchema.description = enhancedDescription;
-        }
-
-        dataProperties[field.id] = propertySchema;
+      if (field.questionTemplate) {
+        contextParts.push(`Question: ${field.questionTemplate}`);
       }
 
-      (jsonSchema.properties as Record<string, any>).data = {
-        type: 'object',
-        properties: dataProperties,
-        description: 'Extracted field data from user message',
-      };
-
-      (jsonSchema.properties as Record<string, any>).userMessageLanguage = {
-        type: 'string',
-        description: `The ISO language code of the language the user is speaking (e.g., 'en', 'nl', 'de', 'fr')`,
-      };
-
-      if (languageConfig.mode === 'strict') {
-        (jsonSchema.properties as Record<string, any>).isLanguageViolation = {
-          type: 'boolean',
-          description: `True if the user is NOT speaking ${languageConfig.defaultLanguage}. Ignore short responses like 'yes', 'no', 'ok'.`,
-        };
-
-        (
-          jsonSchema.properties as Record<string, any>
-        ).languageViolationMessage = {
-          type: 'string',
-          description: `If isLanguageViolation is true, provide a polite message in ${languageConfig.defaultLanguage} asking the user to communicate in ${languageConfig.defaultLanguage} only.`,
-        };
+      if (field.aiContext) {
+        contextParts.push(`Context: ${field.aiContext}`);
       }
-    } else {
-      // No language config - use original simple schema
-      for (const field of fields) {
-        // Start with the field's validation schema
-        const propertySchema = { ...field.validation };
 
-        // Enhance with context: inject questionTemplate or aiContext into description
-        const contextParts: string[] = [];
-
-        if (field.questionTemplate) {
-          contextParts.push(`Question: ${field.questionTemplate}`);
-        }
-
-        if (field.aiContext) {
-          contextParts.push(`Context: ${field.aiContext}`);
-        }
-
-        if (contextParts.length > 0) {
-          // Prepend our context to any existing description
-          const existingDescription =
-            (propertySchema.description as string | undefined) || '';
-          const enhancedDescription =
-            contextParts.join(' | ') +
-            (existingDescription ? ` | ${existingDescription}` : '');
-          propertySchema.description = enhancedDescription;
-        }
-
-        (jsonSchema.properties as Record<string, any>)[field.id] =
-          propertySchema;
+      if (contextParts.length > 0) {
+        // Prepend our context to any existing description
+        const existingDescription =
+          (propertySchema.description as string) || '';
+        const enhancedDescription =
+          contextParts.join(' | ') +
+          (existingDescription ? ` | ${existingDescription}` : '');
+        propertySchema.description = enhancedDescription;
       }
+
+      dataProperties[field.id] = propertySchema;
     }
 
-    return jsonSchema;
+    return dataProperties;
+  }
+
+  /**
+   * Generic method to execute a structured LLM task.
+   * Handles building the system message, executing the chat, and checking for language violations.
+   * @param params - Task execution parameters
+   * @param params.systemPromptKey - The prompt key for the system message
+   * @param params.context - Optional context variables for template interpolation
+   * @param params.schema - Schema definition for structured output
+   * @param params.schema.properties - JSON schema properties for structured output
+   * @param params.schema.required - Array of required property names
+   * @param params.history - Conversation history
+   * @param params.userMessage - The user message to send
+   * @param params.languageConfig - Optional language configuration
+   * @returns Promise resolving to the structured result
+   * @throws LanguageViolationException if strict mode is enabled and language violation detected
+   */
+  private async executeStructuredTask({
+    systemPromptKey,
+    context,
+    schema,
+    history,
+    userMessage,
+    languageConfig,
+  }: {
+    systemPromptKey: string;
+    context?: Record<string, any>;
+    schema: {
+      properties: Record<string, any>;
+      required: string[];
+    };
+    history: LlmMessage[];
+    userMessage: string;
+    languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string };
+  }): Promise<Record<string, any>> {
+    const baseSystemPrompt = this.promptService.getPrompt(systemPromptKey);
+
+    const builder = new SystemMessageBuilder(
+      baseSystemPrompt,
+      this.promptService,
+      this.templateService,
+    );
+
+    // Add context if provided
+    if (context) {
+      builder.withContext(context);
+    }
+
+    builder
+      .withSchemaProperties(schema.properties, schema.required)
+      .withLanguageConfig(languageConfig);
+
+    const result = await this.promptExecutionService.executeStructuredChat(
+      builder,
+      history,
+      userMessage,
+    );
+
+    // Check for language violations in strict mode
+    if (
+      languageConfig?.mode === 'strict' &&
+      result.isLanguageViolation === true
+    ) {
+      const violationMessage =
+        (result.languageViolationMessage as string) ||
+        `Please communicate in ${languageConfig.defaultLanguage} only.`;
+
+      throw new LanguageViolationException(
+        violationMessage,
+        result.userMessageLanguage as string | undefined,
+        languageConfig.defaultLanguage,
+      );
+    }
+
+    return result;
   }
 
   /**
