@@ -1,8 +1,15 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PluginContext, PluginResult, PluginHook } from '@conversational-data-engine/plugin-builder';
+import {
+  PluginContext,
+  PluginResult,
+  PluginHook,
+} from '@conversational-data-engine/plugin-builder';
 import { PluginConfig, loadAndValidatePluginConfig } from './plugin.config';
-import { ServiceBlueprint, PluginConfig as BlueprintPluginConfig } from '../../modules/blueprint/interfaces/blueprint.interface';
+import {
+  ServiceBlueprint,
+  PluginConfig as BlueprintPluginConfig,
+} from '../../modules/blueprint/interfaces/blueprint.interface';
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -90,7 +97,7 @@ export class PluginManagerService implements OnModuleInit {
     try {
       await fs.promises.access(this.config.pluginsDirectory);
       return true;
-    } catch (error) {
+    } catch {
       this.logger.warn(
         `Plugins directory is not accessible: ${this.config.pluginsDirectory}. Plugins will be disabled.`,
       );
@@ -124,7 +131,7 @@ export class PluginManagerService implements OnModuleInit {
     try {
       await fs.promises.access(filePath);
       return true;
-    } catch (error) {
+    } catch {
       this.logger.warn(errorMessage);
       return false;
     }
@@ -139,23 +146,21 @@ export class PluginManagerService implements OnModuleInit {
     manifestPath: string,
   ): Promise<PluginMetadata | null> {
     try {
-      const manifestContent = await fs.promises.readFile(
-        manifestPath,
-        'utf-8',
-      );
-      const manifestJson = JSON.parse(manifestContent);
-      
+      const manifestContent = await fs.promises.readFile(manifestPath, 'utf-8');
+      const manifestJson: unknown = JSON.parse(manifestContent);
+
       // Validate with Zod schema
       const manifest = PluginMetadataSchema.parse(manifestJson);
       return manifest;
     } catch (error) {
       if (error instanceof z.ZodError) {
         this.logger.warn(
-          `Invalid manifest at ${manifestPath}: ${error.issues.map(e => e.message).join(', ')}`,
+          `Invalid manifest at ${manifestPath}: ${error.issues.map((e) => e.message).join(', ')}`,
         );
       } else {
+        const message = error instanceof Error ? error.message : String(error);
         this.logger.warn(
-          `Failed to parse manifest at ${manifestPath}: ${error.message}`,
+          `Failed to parse manifest at ${manifestPath}: ${message}`,
         );
       }
       return null;
@@ -168,29 +173,41 @@ export class PluginManagerService implements OnModuleInit {
    * @param entryPath Absolute path to the plugin entry file
    * @returns Plugin instance or null if import fails
    */
-  private async importPluginModule(entryPath: string): Promise<PluginHook | null> {
+  private async importPluginModule(
+    entryPath: string,
+  ): Promise<PluginHook | null> {
     try {
       // Convert to file:// URL for dynamic import (required on Windows)
       const fileUrl = new URL(`file:///${entryPath.replace(/\\/g, '/')}`).href;
 
       // Dynamically import the plugin module
-      const pluginModule = await import(fileUrl);
-      
+      const pluginModule: unknown = await import(fileUrl);
+
       // Handle various module export structures:
       // - ESM: pluginModule.default
       // - CommonJS with named + default export: pluginModule.default.default
       // - Direct export: pluginModule
-      let pluginInstance = pluginModule.default || pluginModule;
-      
+      let pluginInstance: unknown =
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        (pluginModule as any).default || pluginModule;
+
       // If we got a module wrapper with another default, unwrap it
-      if (pluginInstance && pluginInstance.default && typeof pluginInstance.default === 'object') {
-        pluginInstance = pluginInstance.default;
+      if (
+        pluginInstance &&
+        typeof pluginInstance === 'object' &&
+        'default' in pluginInstance &&
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        typeof (pluginInstance as any).default === 'object'
+      ) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        pluginInstance = (pluginInstance as any).default;
       }
 
-      return pluginInstance;
+      return pluginInstance as PluginHook;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
-        `Failed to import plugin module from ${entryPath}: ${error.message}`,
+        `Failed to import plugin module from ${entryPath}: ${message}`,
       );
       return null;
     }
@@ -236,9 +253,8 @@ export class PluginManagerService implements OnModuleInit {
         `Loaded plugin: ${manifest.name} (${manifest.id}) v${manifest.version}`,
       );
     } catch (error) {
-      this.logger.error(
-        `Failed to load plugin from ${pluginPath}: ${error.message}`,
-      );
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to load plugin from ${pluginPath}: ${message}`);
     }
   }
 
@@ -268,18 +284,23 @@ export class PluginManagerService implements OnModuleInit {
       const pluginConfig = blueprint.plugins.find(
         (p) => (p.instanceId || p.id) === instanceId,
       );
-      
+
       if (!pluginConfig) return true; // Execute if config not found
-      
+
       // If triggerOnField is set, only execute if it matches the current field
       if (pluginConfig.triggerOnField) {
         return pluginConfig.triggerOnField === context.fieldId;
       }
-      
+
       return true; // Execute if no filter is set
     });
 
-    return this.executeHook('onFieldValidated', filteredInstanceIds, context, blueprint);
+    return this.executeHook(
+      'onFieldValidated',
+      filteredInstanceIds,
+      context,
+      blueprint,
+    );
   }
 
   /**
@@ -290,7 +311,12 @@ export class PluginManagerService implements OnModuleInit {
     context: PluginContext,
     blueprint: ServiceBlueprint,
   ): Promise<PluginResult> {
-    return this.executeHook('onConversationComplete', pluginInstanceIds, context, blueprint);
+    return this.executeHook(
+      'onConversationComplete',
+      pluginInstanceIds,
+      context,
+      blueprint,
+    );
   }
 
   /**
@@ -309,7 +335,9 @@ export class PluginManagerService implements OnModuleInit {
     );
 
     if (!pluginConfig) {
-      this.logger.error(`Plugin instance not found in blueprint: ${instanceId}`);
+      this.logger.error(
+        `Plugin instance not found in blueprint: ${instanceId}`,
+      );
       return null;
     }
 
@@ -340,7 +368,7 @@ export class PluginManagerService implements OnModuleInit {
     plugin: LoadedPlugin,
     context: PluginContext,
   ): Promise<PluginResult | null> {
-    const hookFn = plugin.instance[hookName];
+    const hookFn = plugin.instance[hookName] as unknown;
 
     if (typeof hookFn !== 'function') {
       this.logger.debug(
@@ -353,8 +381,11 @@ export class PluginManagerService implements OnModuleInit {
       `Executing ${hookName} for plugin instance: ${instanceId} (${pluginConfig.id})`,
     );
 
-    const result: PluginResult = await hookFn.call(plugin.instance, context);
-    return result;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const result = await (
+      hookFn as (context: PluginContext) => Promise<PluginResult>
+    ).call(plugin.instance, context);
+    return result as PluginResult;
   }
 
   /**
@@ -410,7 +441,8 @@ export class PluginManagerService implements OnModuleInit {
           mergedResult.metadata[instanceId] = result.metadata;
         }
       } catch (error) {
-        const errorMessage = `Plugin instance ${instanceId} (${pluginConfig.id}) failed during ${hookName}: ${error.message}`;
+        const message = error instanceof Error ? error.message : String(error);
+        const errorMessage = `Plugin instance ${instanceId} (${pluginConfig.id}) failed during ${hookName}: ${message}`;
         this.logger.error(errorMessage);
         // Plugin failures block the conversation flow
         throw new Error(errorMessage);

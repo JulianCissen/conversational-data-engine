@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseMessage, HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
+import {
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
+  AIMessage,
+} from '@langchain/core/messages';
 import { LlmConfig, loadAndValidateLlmConfig } from './llm.config';
 import { LlmMessage } from './llm.types';
 
@@ -91,6 +96,6 @@ export class LlmService {
   ): Promise<T> {
     const langchainMessages = this.convertToLangChainMessages(messages);
     const structuredModel = this.chatModel.withStructuredOutput(jsonSchema);
-    return await structuredModel.invoke(langchainMessages) as T;
+    return (await structuredModel.invoke(langchainMessages)) as T;
   }
 }

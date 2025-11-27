@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { FieldDefinition, ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
+import {
+  FieldDefinition,
+  ServiceBlueprint,
+} from '../blueprint/interfaces/blueprint.interface';
 import { LlmMessage } from '../../core/llm/llm.types';
 import { PromptExecutionService } from './prompt-execution.service';
 import { PROMPT_KEYS } from '../../core/prompt/prompt.constants';
@@ -35,7 +38,7 @@ export class PresenterService {
         history,
       );
     }
-    
+
     return await this.promptExecutionService.executeChat(
       PROMPT_KEYS.PRESENTER_QUESTION_SYSTEM,
       PROMPT_KEYS.PRESENTER_QUESTION_USER,
@@ -78,7 +81,7 @@ export class PresenterService {
         history,
       );
     }
-    
+
     return await this.promptExecutionService.executeChat(
       PROMPT_KEYS.PRESENTER_ERROR_SYSTEM,
       PROMPT_KEYS.PRESENTER_ERROR_USER,
@@ -120,7 +123,7 @@ export class PresenterService {
         history,
       );
     }
-    
+
     return await this.promptExecutionService.executeChat(
       PROMPT_KEYS.PRESENTER_CONTEXTUAL_SYSTEM,
       PROMPT_KEYS.PRESENTER_CONTEXTUAL_USER,
@@ -147,10 +150,8 @@ export class PresenterService {
    * @returns Formatted service list with prompt
    */
   formatServiceList(services: ServiceBlueprint[]): string {
-    const serviceList = services
-      .map((s) => `• ${s.name} (${s.id})`)
-      .join('\n');
-    
+    const serviceList = services.map((s) => `• ${s.name} (${s.id})`).join('\n');
+
     return `Here are the available services:\n\n${serviceList}\n\nWhich service would you like to use?`;
   }
 
@@ -175,7 +176,7 @@ export class PresenterService {
    * @returns The fallback message string
    */
   getFallbackMessage(): string {
-    return 'I\'m not sure what to ask next.';
+    return "I'm not sure what to ask next.";
   }
 
   /**
@@ -184,7 +185,10 @@ export class PresenterService {
    * @param history Optional conversation history to include
    * @returns A message announcing the language requirement in the target language
    */
-  async getLanguageRequirementAnnouncement(languageCode: string, history: LlmMessage[] = []): Promise<string> {
+  async getLanguageRequirementAnnouncement(
+    languageCode: string,
+    history: LlmMessage[] = [],
+  ): Promise<string> {
     return await this.promptExecutionService.executeChat(
       PROMPT_KEYS.PRESENTER_LANGUAGE_ANNOUNCEMENT_SYSTEM,
       PROMPT_KEYS.PRESENTER_LANGUAGE_ANNOUNCEMENT_USER,

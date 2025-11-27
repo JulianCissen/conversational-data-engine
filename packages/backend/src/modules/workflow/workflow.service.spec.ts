@@ -85,7 +85,10 @@ describe('WorkflowService', () => {
       });
 
       const dataUndefined = { fieldA: undefined };
-      const resultUndefined = service.determineNextStep(blueprint, dataUndefined);
+      const resultUndefined = service.determineNextStep(
+        blueprint,
+        dataUndefined,
+      );
 
       expect(resultUndefined).toEqual({
         nextFieldId: 'fieldA',
@@ -211,7 +214,10 @@ describe('WorkflowService', () => {
             aiContext: 'Offer only for adults in NL',
             validation: {},
             condition: {
-              and: [{ '>': [{ var: 'age' }, 18] }, { '==': [{ var: 'country' }, 'NL'] }],
+              and: [
+                { '>': [{ var: 'age' }, 18] },
+                { '==': [{ var: 'country' }, 'NL'] },
+              ],
             },
           },
         ],
@@ -340,7 +346,11 @@ describe('WorkflowService', () => {
     });
 
     it('should complete train flow when all relevant fields are filled', () => {
-      const data = { transportType: 'train', trainClass: 'first', distance: 200 };
+      const data = {
+        transportType: 'train',
+        trainClass: 'first',
+        distance: 200,
+      };
       const result = service.determineNextStep(blueprint, data);
 
       expect(result).toEqual({

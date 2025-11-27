@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { jsonSchemaToZod } from 'json-schema-to-zod';
 import { z } from 'zod';
-import { FieldDefinition, JsonSchema } from '../../modules/blueprint/interfaces/blueprint.interface';
+import {
+  FieldDefinition,
+  JsonSchema,
+} from '../../modules/blueprint/interfaces/blueprint.interface';
 
 /**
  * Service for validating field values against JSON Schema definitions.
@@ -18,18 +21,21 @@ export class ValidationService {
    * @param field The field definition containing validation schema
    * @returns true if valid, false otherwise
    */
-  validateValue(value: any, field: FieldDefinition): boolean {
+  validateValue(value: unknown, field: FieldDefinition): boolean {
     try {
-      const zodSchema = this.getOrCreateZodSchema(field.id, field.validation);
+      const zodSchema = this.getOrCreateZodSchema(field.validation);
       zodSchema.parse(value);
       return true;
     } catch (error) {
       if (error instanceof z.ZodError) {
         this.logger.debug(
-          `[validateValue] '${field.id}' failed: ${error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`,
+          `[validateValue] '${field.id}' failed: ${error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')}`,
         );
       } else {
-        this.logger.error(`[validateValue] Unexpected error for '${field.id}':`, error);
+        this.logger.error(
+          `[validateValue] Unexpected error for '${field.id}':`,
+          error,
+        );
       }
       return false;
     }
@@ -37,14 +43,18 @@ export class ValidationService {
 
   /**
    * Get or create a Zod schema from JSON Schema, with caching.
-   * @param fieldId The field ID for cache key
+   * Cache key is based on the JSON Schema content hash to handle cases where
+   * multiple services use the same field ID with different validation rules.
    * @param jsonSchema The JSON Schema definition
    * @returns Zod schema instance
    */
-  private getOrCreateZodSchema(fieldId: string, jsonSchema: JsonSchema): z.ZodTypeAny {
+  private getOrCreateZodSchema(jsonSchema: JsonSchema): z.ZodTypeAny {
+    // Create a cache key based on the schema content
+    const cacheKey = JSON.stringify(jsonSchema);
+
     // Check cache first
-    if (this.schemaCache.has(fieldId)) {
-      return this.schemaCache.get(fieldId)!;
+    if (this.schemaCache.has(cacheKey)) {
+      return this.schemaCache.get(cacheKey)!;
     }
 
     try {
@@ -55,17 +65,20 @@ export class ValidationService {
       });
 
       // Create a safe evaluation context with only z available
-      const createZodSchema = new Function('z', `return ${zodSchemaString}`);
-      const zodSchema = createZodSchema(z);
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval
+      const createZodSchema = new Function(
+        'z',
+        `return ${zodSchemaString}`,
+      ) as (zodLib: typeof z) => z.ZodTypeAny;
+      const zodSchema: z.ZodTypeAny = createZodSchema(z);
 
       // Cache for future use
-      this.schemaCache.set(fieldId, zodSchema);
+      this.schemaCache.set(cacheKey, zodSchema);
 
       return zodSchema;
     } catch (error) {
-      this.logger.error(
-        `Failed to create Zod schema for field '${fieldId}': ${error.message}`,
-      );
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to create Zod schema: ${message}`);
       // Fallback to a permissive schema that accepts anything
       return z.any();
     }

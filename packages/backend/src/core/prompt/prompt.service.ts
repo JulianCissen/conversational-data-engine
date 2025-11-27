@@ -20,10 +20,10 @@ export class PromptService implements OnModuleInit {
    */
   async onModuleInit() {
     this.logger.log('Initializing PromptService...');
-    
+
     const fork = this.em.fork();
     await this.ensurePromptsSeeded(fork);
-    
+
     const prompts = await fork.find(Prompt, {});
     this.loadPromptsIntoCache(prompts);
 
@@ -39,7 +39,9 @@ export class PromptService implements OnModuleInit {
   getPrompt(key: string): string {
     const prompt = this.promptCache.get(key);
     if (prompt === undefined) {
-      throw new Error(`Prompt with key '${key}' not found. Available keys: ${this.getAllKeys().join(', ')}`);
+      throw new Error(
+        `Prompt with key '${key}' not found. Available keys: ${this.getAllKeys().join(', ')}`,
+      );
     }
     return prompt;
   }
@@ -68,11 +70,11 @@ export class PromptService implements OnModuleInit {
    */
   async reloadPrompts(): Promise<number> {
     this.logger.log('Reloading prompts from database...');
-    
+
     const fork = this.em.fork();
     const prompts = await fork.find(Prompt, {});
     this.loadPromptsIntoCache(prompts);
-    
+
     this.logger.log('Prompts reloaded successfully.');
     return prompts.length;
   }
@@ -96,9 +98,11 @@ export class PromptService implements OnModuleInit {
    */
   private async ensurePromptsSeeded(em: EntityManager): Promise<void> {
     const existingPrompts = await em.find(Prompt, {});
-    
+
     if (existingPrompts.length === 0) {
-      this.logger.log('No prompts found in database. Seeding default prompts...');
+      this.logger.log(
+        'No prompts found in database. Seeding default prompts...',
+      );
       await this.seedDefaultPrompts(em);
     }
   }

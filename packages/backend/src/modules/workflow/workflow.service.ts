@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as jsonLogic from 'json-logic-js';
-import { ServiceBlueprint, FieldDefinition } from '../blueprint/interfaces/blueprint.interface';
+import {
+  ServiceBlueprint,
+  FieldDefinition,
+} from '../blueprint/interfaces/blueprint.interface';
 import { ValidationService } from '../../core/validation/validation.service';
 
 /**
@@ -30,7 +33,7 @@ export interface NextStepResult {
 @Injectable()
 export class WorkflowService {
   private readonly logger = new Logger(WorkflowService.name);
-  
+
   constructor(private readonly validationService: ValidationService) {}
   /**
    * Determines the next field to be asked in the conversational flow.
@@ -70,7 +73,7 @@ export class WorkflowService {
    * @returns true if the field should be visible, false otherwise
    */
   private isFieldVisible(
-    condition: any | undefined,
+    condition: unknown,
     data: Record<string, any>,
   ): boolean {
     // If no condition is defined, the field is always visible
@@ -79,7 +82,10 @@ export class WorkflowService {
     }
 
     // Evaluate the JsonLogic condition
-    const result = jsonLogic.apply(condition, data);
+    const result = jsonLogic.apply(
+      condition as jsonLogic.RulesLogic,
+      data,
+    ) as unknown;
 
     // Convert the result to boolean (in case of truthy/falsy values)
     return Boolean(result);
@@ -104,14 +110,14 @@ export class WorkflowService {
 
     // Check if the field is hidden by conditional logic
     const isVisible = this.isFieldVisible(field.condition, data);
-    
+
     return !isVisible;
   }
 
   /**
    * Validates field data according to business rules.
    * Delegates to ValidationService for comprehensive validation.
-   * 
+   *
    * @param value - The extracted value to validate
    * @param field - The field definition containing type information
    * @returns true if the value is valid, false otherwise

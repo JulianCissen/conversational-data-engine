@@ -1,1 +1,0 @@
-- Keep the `PRODUCT_REQUIREMENT_DOCUMENT.md` file updated. Whenever you find out about new high level requirements, architectural decisions etc., please adjust them in the PRD. This makes it so we have a good overview of what we're building, and it provides context for LLMs.

@@ -24,15 +24,13 @@ export const LLM_CONFIG_CONSTANTS = {
  * Defaults are applied through Zod's .default() method.
  */
 export const LlmConfigSchema = z.object({
-  apiKey: z.string().min(
-    LLM_CONFIG_CONSTANTS.MIN_API_KEY_LENGTH,
-    'LLM_API_KEY is required',
-  ),
+  apiKey: z
+    .string()
+    .min(LLM_CONFIG_CONSTANTS.MIN_API_KEY_LENGTH, 'LLM_API_KEY is required'),
   baseURL: z.url('LLM_BASE_URL must be a valid URL'),
-  modelName: z.string().min(
-    LLM_CONFIG_CONSTANTS.MIN_MODEL_NAME_LENGTH,
-    'LLM_MODEL is required',
-  ),
+  modelName: z
+    .string()
+    .min(LLM_CONFIG_CONSTANTS.MIN_MODEL_NAME_LENGTH, 'LLM_MODEL is required'),
   temperature: z
     .number()
     .min(LLM_CONFIG_CONSTANTS.MIN_TEMPERATURE)
@@ -64,7 +62,9 @@ const LLM_ENV_MAPPING = {
  * @returns Validated LLM configuration with defaults applied
  * @throws Error if configuration is invalid
  */
-export function loadAndValidateLlmConfig(configService: ConfigService): LlmConfig {
+export function loadAndValidateLlmConfig(
+  configService: ConfigService,
+): LlmConfig {
   return loadConfig(
     configService,
     LLM_ENV_MAPPING,

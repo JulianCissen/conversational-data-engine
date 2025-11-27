@@ -1,5 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ServiceBlueprint } from './interfaces/blueprint.interface';
+import {
+  ServiceBlueprint,
+  ServiceBlueprintSchema,
+} from './interfaces/blueprint.interface';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
@@ -91,7 +94,7 @@ export class BlueprintService implements OnModuleInit {
       await fs.access(this.blueprintDataPath);
       const files = await fs.readdir(this.blueprintDataPath);
       return files.filter((file) => file.endsWith('.json'));
-    } catch (error) {
+    } catch {
       this.logger.warn(
         `Blueprint data directory not found: ${this.blueprintDataPath}`,
       );
@@ -100,12 +103,18 @@ export class BlueprintService implements OnModuleInit {
   }
 
   /**
-   * Validate that a blueprint has all required properties.
+   * Validate that a blueprint has all required properties using Zod schema.
    * @param blueprint The blueprint object to validate
    * @returns True if valid, false otherwise
    */
-  private validateBlueprint(blueprint: any): blueprint is ServiceBlueprint {
-    return !!blueprint.id && !!blueprint.name && !!blueprint.fields;
+  private validateBlueprint(blueprint: unknown): blueprint is ServiceBlueprint {
+    const result = ServiceBlueprintSchema.safeParse(blueprint);
+    if (!result.success) {
+      this.logger.debug(
+        `Blueprint validation failed: ${JSON.stringify(result.error.issues)}`,
+      );
+    }
+    return result.success;
   }
 
   /**
@@ -116,21 +125,23 @@ export class BlueprintService implements OnModuleInit {
     try {
       const filePath = path.join(this.blueprintDataPath, filename);
       const fileContent = await fs.readFile(filePath, 'utf-8');
-      const blueprint: ServiceBlueprint = JSON.parse(fileContent);
+      const parsedData: unknown = JSON.parse(fileContent);
 
-      if (!this.validateBlueprint(blueprint)) {
+      if (!this.validateBlueprint(parsedData)) {
         this.logger.warn(
           `Invalid blueprint format in file: ${filename}. Skipping.`,
         );
         return;
       }
 
-      this.blueprintRegistry.set(blueprint.id, blueprint);
-      this.logger.debug(`Loaded blueprint: ${blueprint.id} (${blueprint.name})`);
+      this.blueprintRegistry.set(parsedData.id, parsedData);
+      this.logger.debug(
+        `Loaded blueprint: ${parsedData.id} (${parsedData.name})`,
+      );
     } catch (error) {
       this.logger.error(
         `Failed to load blueprint from file: ${filename}`,
-        error.stack,
+        error instanceof Error ? error.stack : String(error),
       );
     }
   }

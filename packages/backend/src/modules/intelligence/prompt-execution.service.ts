@@ -34,7 +34,10 @@ export class PromptExecutionService {
   ): Promise<string> {
     const systemPrompt = this.promptService.getPrompt(systemPromptKey);
     const userPromptTemplate = this.promptService.getPrompt(userPromptKey);
-    const userMessage = this.templateService.render(userPromptTemplate, variables);
+    const userMessage = this.templateService.render(
+      userPromptTemplate,
+      variables,
+    );
 
     const messages: LlmMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -64,7 +67,10 @@ export class PromptExecutionService {
     const baseSystemPrompt = this.promptService.getPrompt(systemPromptKey);
     const systemPrompt = baseSystemPrompt + '\n\n' + systemPromptAugmentation;
     const userPromptTemplate = this.promptService.getPrompt(userPromptKey);
-    const userMessage = this.templateService.render(userPromptTemplate, variables);
+    const userMessage = this.templateService.render(
+      userPromptTemplate,
+      variables,
+    );
 
     const messages: LlmMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -92,10 +98,16 @@ export class PromptExecutionService {
     history: LlmMessage[] = [],
   ): Promise<string> {
     const systemPromptTemplate = this.promptService.getPrompt(systemPromptKey);
-    const systemPrompt = this.templateService.render(systemPromptTemplate, systemVariables);
-    
+    const systemPrompt = this.templateService.render(
+      systemPromptTemplate,
+      systemVariables,
+    );
+
     const userPromptTemplate = this.promptService.getPrompt(userPromptKey);
-    const userMessage = this.templateService.render(userPromptTemplate, userVariables);
+    const userMessage = this.templateService.render(
+      userPromptTemplate,
+      userVariables,
+    );
 
     const messages: LlmMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -131,7 +143,9 @@ export class PromptExecutionService {
     try {
       const result = await this.llmService.chatStructured(jsonSchema, messages);
 
-      this.logger.debug(`[executeStructuredExtraction] LLM output: ${JSON.stringify(result)}`);
+      this.logger.debug(
+        `[executeStructuredExtraction] LLM output: ${JSON.stringify(result)}`,
+      );
       return result as Record<string, any>;
     } catch (error) {
       this.logger.error(`[executeStructuredExtraction] Failed:`, error);
@@ -167,10 +181,15 @@ export class PromptExecutionService {
     try {
       const result = await this.llmService.chatStructured(jsonSchema, messages);
 
-      this.logger.debug(`[executeStructuredExtractionWithAugmentedSystem] LLM output: ${JSON.stringify(result)}`);
+      this.logger.debug(
+        `[executeStructuredExtractionWithAugmentedSystem] LLM output: ${JSON.stringify(result)}`,
+      );
       return result as Record<string, any>;
     } catch (error) {
-      this.logger.error(`[executeStructuredExtractionWithAugmentedSystem] Failed:`, error);
+      this.logger.error(
+        `[executeStructuredExtractionWithAugmentedSystem] Failed:`,
+        error,
+      );
       return {};
     }
   }
@@ -193,7 +212,10 @@ export class PromptExecutionService {
   ): Promise<Record<string, any>> {
     const systemPrompt = this.promptService.getPrompt(systemPromptKey);
     const userPromptTemplate = this.promptService.getPrompt(userPromptKey);
-    const userMessage = this.templateService.render(userPromptTemplate, variables);
+    const userMessage = this.templateService.render(
+      userPromptTemplate,
+      variables,
+    );
 
     const messages: LlmMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -232,7 +254,10 @@ export class PromptExecutionService {
     const baseSystemPrompt = this.promptService.getPrompt(systemPromptKey);
     const systemPrompt = baseSystemPrompt + '\n\n' + systemPromptAugmentation;
     const userPromptTemplate = this.promptService.getPrompt(userPromptKey);
-    const userMessage = this.templateService.render(userPromptTemplate, variables);
+    const userMessage = this.templateService.render(
+      userPromptTemplate,
+      variables,
+    );
 
     const messages: LlmMessage[] = [
       { role: 'system', content: systemPrompt },

@@ -9,9 +9,7 @@ import * as path from 'path';
  * Defaults are applied through Zod's .default() method.
  */
 export const PluginConfigSchema = z.object({
-  pluginsDirectory: z
-    .string()
-    .default(path.resolve(process.cwd(), 'plugins')),
+  pluginsDirectory: z.string().default(path.resolve(process.cwd(), 'plugins')),
 });
 
 /**
@@ -35,7 +33,9 @@ const PLUGIN_ENV_MAPPING = {
  * @returns Validated plugin configuration with defaults applied
  * @throws Error if configuration is invalid
  */
-export function loadAndValidatePluginConfig(configService: ConfigService): PluginConfig {
+export function loadAndValidatePluginConfig(
+  configService: ConfigService,
+): PluginConfig {
   return loadConfig(
     configService,
     PLUGIN_ENV_MAPPING,

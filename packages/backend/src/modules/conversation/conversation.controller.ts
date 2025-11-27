@@ -1,5 +1,7 @@
 import { Controller, Post, Get, Delete, Body, Param } from '@nestjs/common';
 import { ConversationService } from './conversation.service';
+import { ConversationFlowService } from './conversation.flow.service';
+import { PresenterService } from '../intelligence/presenter.service';
 import { Conversation } from './conversation.entity';
 
 export class ConversationRequestDto {
@@ -32,22 +34,32 @@ export interface ConversationDto {
 
 @Controller('conversation')
 export class ConversationController {
-  constructor(private readonly conversationService: ConversationService) {}
+  constructor(
+    private readonly conversationService: ConversationService,
+    private readonly conversationFlowService: ConversationFlowService,
+    private readonly presenterService: PresenterService,
+  ) {}
 
   @Get('config')
   async getConfig(): Promise<ConversationConfigDto> {
-    return await this.conversationService.getConfig();
+    const welcomeMessage = this.presenterService.getWelcomeMessage();
+    return Promise.resolve({ welcomeMessage });
   }
 
   @Post()
-  async handleMessage(@Body() body: ConversationRequestDto): Promise<ConversationResponseDto> {
-    return await this.conversationService.handleMessage(body.conversationId, body.text);
+  async handleMessage(
+    @Body() body: ConversationRequestDto,
+  ): Promise<ConversationResponseDto> {
+    return await this.conversationFlowService.handleMessage(
+      body.conversationId,
+      body.text,
+    );
   }
 
   @Get()
   async findAll(): Promise<ConversationDto[]> {
     const conversations = await this.conversationService.findAll();
-    return conversations.map(c => this.serializeConversation(c));
+    return conversations.map((c) => this.serializeConversation(c));
   }
 
   @Get(':id')

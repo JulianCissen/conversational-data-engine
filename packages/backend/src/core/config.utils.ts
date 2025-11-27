@@ -22,7 +22,7 @@ export class ConfigBuilder<T extends Record<string, any>> {
    * @param value - Property value (undefined values are skipped)
    * @returns this for chaining
    */
-  add<K extends keyof T>(key: K, value: T[K] | undefined): this {
+  add<K extends keyof T>(key: K, value: T[K]): this {
     if (value !== undefined) {
       this.config[key] = value;
     }
@@ -71,10 +71,10 @@ export function loadConfig<T extends z.ZodTypeAny>(
   errorMessage: string,
 ): z.infer<T> {
   // Build config with only defined values using ConfigBuilder
-  const builder = new ConfigBuilder<Record<string, any>>();
+  const builder = new ConfigBuilder<Record<string, unknown>>();
 
   for (const [configKey, envVarName] of Object.entries(envMapping)) {
-    const value = configService.get(envVarName);
+    const value: unknown = configService.get(envVarName);
     builder.add(configKey, value);
   }
 
@@ -84,7 +84,8 @@ export function loadConfig<T extends z.ZodTypeAny>(
     // Zod will apply defaults for missing properties
     return schema.parse(rawConfig);
   } catch (error) {
-    throw new Error(`${errorMessage}: ${error.message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${errorMessage}: ${message}`);
   }
 }
 
@@ -109,7 +110,7 @@ export function removeUndefined<T extends Record<string, any>>(
 
   for (const [key, value] of Object.entries(obj)) {
     if (value !== undefined) {
-      result[key as keyof T] = value;
+      result[key as keyof T] = value as T[keyof T];
     }
   }
 
