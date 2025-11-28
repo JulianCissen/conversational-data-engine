@@ -14,39 +14,36 @@ export class PromptExecutionService {
   constructor(private readonly llmService: LlmService) {}
 
   /**
-   * Execute a chat completion with a system message builder and user message.
+   * Execute a chat completion with a system message builder.
+   * The user message should be the last entry in the history array.
    * @param builder SystemMessageBuilder containing the constructed system context
-   * @param history Optional conversation history to include
-   * @param userMessage The raw user message
+   * @param history Conversation history including the current user message
    * @returns The LLM response as a string
    */
   public async executeChat(
     builder: SystemMessageBuilder,
     history: LlmMessage[] = [],
-    userMessage: string,
   ): Promise<string> {
     const systemMessage = builder.buildSystemMessage();
 
     const messages: LlmMessage[] = [
       { role: 'system', content: systemMessage },
       ...history,
-      { role: 'user', content: userMessage },
     ];
 
     return await this.llmService.chat(messages);
   }
 
   /**
-   * Execute a structured chat completion with a system message builder and user message.
+   * Execute a structured chat completion with a system message builder.
+   * The user message should be the last entry in the history array.
    * @param builder SystemMessageBuilder containing the constructed system context and schema
-   * @param history Optional conversation history to include
-   * @param userMessage The raw user message
+   * @param history Conversation history including the current user message
    * @returns The extracted data as a JSON object
    */
   public async executeStructuredChat(
     builder: SystemMessageBuilder,
     history: LlmMessage[] = [],
-    userMessage: string,
   ): Promise<Record<string, any>> {
     const systemMessage = builder.buildSystemMessage();
     const jsonSchema = builder.getSchema();
@@ -54,7 +51,6 @@ export class PromptExecutionService {
     const messages: LlmMessage[] = [
       { role: 'system', content: systemMessage },
       ...history,
-      { role: 'user', content: userMessage },
     ];
 
     try {

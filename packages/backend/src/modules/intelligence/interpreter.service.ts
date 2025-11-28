@@ -63,17 +63,16 @@ export class InterpreterService {
 
   /**
    * Extracts structured data from unstructured user text based on the provided field definitions.
+   * The user message is expected to be the last message in the history array.
    *
    * @param fields - Array of field definitions from the blueprint
-   * @param userMessage - Unstructured text from the user
    * @param languageConfig - Optional language configuration for enforcement
-   * @param history - Optional conversation history to include
+   * @param history - Conversation history including the current user message as the last entry
    * @returns Promise resolving to extracted data with language metadata
    * @throws LanguageViolationException if strict mode is enabled and user violates language rules
    */
   public async extractData(
     fields: FieldDefinition[],
-    userMessage: string,
     languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
     history: LlmMessage[] = [],
   ): Promise<{
@@ -97,7 +96,6 @@ export class InterpreterService {
         required: ['data'],
       },
       history,
-      userMessage,
       languageConfig,
     });
 
@@ -115,15 +113,14 @@ export class InterpreterService {
   /**
    * Classify the user's intent based on their message and the current field.
    * Determines if the user is trying to answer the question or asking for clarification.
-   * @param userText The user's message
+   * The user message is expected to be the last message in the history array.
    * @param currentField The current field being collected
    * @param languageConfig Optional language configuration for strict enforcement
-   * @param history Optional conversation history to include
+   * @param history Conversation history including the current user message as the last entry
    * @returns IntentClassification object with intent and reason
    * @throws LanguageViolationException if strict mode is enabled and user violates language rules
    */
   public async classifyIntent(
-    userText: string,
     currentField: FieldDefinition,
     languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
     history: LlmMessage[] = [],
@@ -139,7 +136,6 @@ export class InterpreterService {
         required: ['intent', 'reason'],
       },
       history,
-      userMessage: userText,
       languageConfig,
     });
 
@@ -154,26 +150,18 @@ export class InterpreterService {
       reason: typedResult.reason || 'No reason provided',
     };
 
-    // Log if the message is not classified as a valid answer
-    if (classification.intent !== 'ANSWER') {
-      this.logger.log(
-        `Intent classified as ${classification.intent}: "${userText}" - Reason: ${classification.reason}`,
-      );
-    }
-
     return classification;
   }
 
   /**
    * Classify which service the user wants to select based on their message.
    * Uses LLM to match user intent to available services.
-   * @param userText The user's message
+   * The user message is expected to be the last message in the history array.
    * @param services Array of available service blueprints
-   * @param history Optional conversation history to include
+   * @param history Conversation history including the current user message as the last entry
    * @returns The blueprint ID if matched, 'LIST_SERVICES' if asking for a list, 'UNCLEAR' if uncertain
    */
   public async classifyServiceSelection(
-    userText: string,
     services: ServiceBlueprint[],
     history: LlmMessage[] = [],
   ): Promise<ServiceSelectionIntent> {
@@ -204,7 +192,6 @@ export class InterpreterService {
         required: ['selection', 'reason'],
       },
       history,
-      userMessage: userText,
     });
 
     const typedResult = result as {
@@ -270,8 +257,7 @@ export class InterpreterService {
    * @param params.schema - Schema definition for structured output
    * @param params.schema.properties - JSON schema properties for structured output
    * @param params.schema.required - Array of required property names
-   * @param params.history - Conversation history
-   * @param params.userMessage - The user message to send
+   * @param params.history - Conversation history including the current user message
    * @param params.languageConfig - Optional language configuration
    * @returns Promise resolving to the structured result
    * @throws LanguageViolationException if strict mode is enabled and language violation detected
@@ -281,7 +267,6 @@ export class InterpreterService {
     context,
     schema,
     history,
-    userMessage,
     languageConfig,
   }: {
     systemPromptKey: string;
@@ -291,7 +276,6 @@ export class InterpreterService {
       required: string[];
     };
     history: LlmMessage[];
-    userMessage: string;
     languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string };
   }): Promise<Record<string, any>> {
     const baseSystemPrompt = this.promptService.getPrompt(systemPromptKey);
@@ -314,7 +298,6 @@ export class InterpreterService {
     const result = await this.promptExecutionService.executeStructuredChat(
       builder,
       history,
-      userMessage,
     );
 
     // Check for language violations in strict mode

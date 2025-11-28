@@ -65,20 +65,17 @@ export class ConversationFlowService {
 
     // Check if service has been selected
     if (!conversation.blueprintId) {
-      return await this.handleServiceSelection(conversation, userText);
+      return await this.handleServiceSelection(conversation);
     }
 
     // Service is selected - proceed with normal blueprint flow
-    return await this.handleBlueprintFlow(conversation, userText);
+    return await this.handleBlueprintFlow(conversation);
   }
 
   /**
    * Handle blueprint-based conversation flow
    */
-  private async handleBlueprintFlow(
-    conversation: Conversation,
-    userText: string,
-  ): Promise<{
+  private async handleBlueprintFlow(conversation: Conversation): Promise<{
     conversationId: string;
     text: string;
     isComplete: boolean;
@@ -98,17 +95,27 @@ export class ConversationFlowService {
 
     try {
       const intentClassification = await this.interpreterService.classifyIntent(
-        userText,
         currentField,
         languageConfig,
         history,
       );
 
+      // Log if the message is not classified as a valid answer
+      if (intentClassification.intent !== 'ANSWER') {
+        const lastUserMessage =
+          conversation.messages
+            .slice()
+            .reverse()
+            .find((msg) => msg.role === 'user')?.content || '[unknown]';
+        this.logger.log(
+          `Intent classified as ${intentClassification.intent}: "${lastUserMessage}" - Reason: ${intentClassification.reason}`,
+        );
+      }
+
       // Branch based on intent
       if (intentClassification.intent === 'QUESTION') {
         return await this.handleClarificationQuestion(
           conversation,
-          userText,
           currentField,
         );
       }
@@ -116,7 +123,6 @@ export class ConversationFlowService {
       // User is providing an answer
       return await this.handleAnswerProvision(
         conversation,
-        userText,
         currentField,
         blueprint,
       );
@@ -147,10 +153,7 @@ export class ConversationFlowService {
   /**
    * Handle service selection when user responds
    */
-  private async handleServiceSelection(
-    conversation: Conversation,
-    userText: string,
-  ): Promise<{
+  private async handleServiceSelection(conversation: Conversation): Promise<{
     conversationId: string;
     text: string;
     isComplete: boolean;
@@ -160,7 +163,6 @@ export class ConversationFlowService {
     const history = this.conversationService.getHistory(conversation);
     const selectionIntent =
       await this.interpreterService.classifyServiceSelection(
-        userText,
         availableServices,
         history,
       );
@@ -237,7 +239,6 @@ export class ConversationFlowService {
    */
   private async handleClarificationQuestion(
     conversation: Conversation,
-    userText: string,
     currentField: ServiceBlueprint['fields'][number],
   ): Promise<{
     conversationId: string;
@@ -253,7 +254,6 @@ export class ConversationFlowService {
 
     const responseText = await this.presenterService.generateContextualResponse(
       currentField,
-      userText,
       languageConfig,
       history,
     );
@@ -275,7 +275,6 @@ export class ConversationFlowService {
    */
   private async handleAnswerProvision(
     conversation: Conversation,
-    userText: string,
     currentField: ServiceBlueprint['fields'][number],
     blueprint: ServiceBlueprint,
   ): Promise<{
@@ -290,7 +289,6 @@ export class ConversationFlowService {
     // Extract and validate data
     const extractionResult = await this.extractAndValidateData(
       conversation,
-      userText,
       currentField,
       languageConfig,
       history,
@@ -324,7 +322,6 @@ export class ConversationFlowService {
    */
   private async extractAndValidateData(
     conversation: Conversation,
-    userText: string,
     currentField: ServiceBlueprint['fields'][number],
     languageConfig: ServiceBlueprint['languageConfig'],
     history: LlmMessage[],
@@ -342,7 +339,6 @@ export class ConversationFlowService {
       // Extract data from user's message
       const extractionResult = await this.interpreterService.extractData(
         [currentField],
-        userText,
         languageConfig,
         history,
       );
@@ -385,7 +381,6 @@ export class ConversationFlowService {
 
         const errorResponse = await this.presenterService.generateErrorResponse(
           currentField,
-          userText,
           undefined,
           languageConfig,
           history,
