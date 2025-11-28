@@ -8,7 +8,6 @@ import { PromptExecutionService } from './prompt-execution.service';
 import { PROMPT_KEYS } from '../../core/prompt/prompt.constants';
 import { SystemMessageBuilder } from './system-message.builder';
 import { PromptService } from '../../core/prompt/prompt.service';
-import { TemplateService } from '../../core/template/template.service';
 import { LanguageViolationException } from './intelligence.exceptions';
 
 export type UserIntent = 'ANSWER' | 'QUESTION';
@@ -58,7 +57,6 @@ export class InterpreterService {
   constructor(
     private readonly promptExecutionService: PromptExecutionService,
     private readonly promptService: PromptService,
-    private readonly templateService: TemplateService,
   ) {}
 
   /**
