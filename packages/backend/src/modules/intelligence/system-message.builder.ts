@@ -23,7 +23,7 @@ export interface SchemaFieldDefinition {
 function getLanguageDetectionField(): SchemaFieldDefinition {
   return {
     type: 'string',
-    description: `The ISO language code of the language the user is speaking (e.g., 'en', 'nl', 'de', 'fr')`,
+    description: `The ISO-639 language code of the language the user is speaking (e.g., 'en-GB', 'nl-NL', 'de-DE', 'fr-FR')`,
   };
 }
 
@@ -65,11 +65,37 @@ export class SystemMessageBuilder {
   private jsonSchema: JsonSchema;
   private context: Record<string, any> = {};
 
-  public constructor(
-    baseSystemMessage: string,
-    private readonly promptService: PromptService,
-    private readonly templateService: TemplateService,
-  ) {
+  /**
+   * Static default language configuration for the application.
+   * Set during application startup and used when no blueprint-specific config is provided.
+   */
+  private static defaultLanguageConfig: LanguageConfig | undefined;
+
+  /**
+   * Static service references for template rendering and prompt retrieval.
+   * Set during application startup to avoid passing services through constructor.
+   */
+  private static promptService: PromptService;
+  private static templateService: TemplateService;
+
+  /**
+   * Initialize static services for all SystemMessageBuilder instances.
+   * Should be called during application initialization.
+   * @param promptService - PromptService instance
+   * @param templateService - TemplateService instance
+   * @param languageConfig - Default language configuration
+   */
+  public static initialize(
+    promptService: PromptService,
+    templateService: TemplateService,
+    languageConfig: LanguageConfig | undefined,
+  ): void {
+    SystemMessageBuilder.promptService = promptService;
+    SystemMessageBuilder.templateService = templateService;
+    SystemMessageBuilder.defaultLanguageConfig = languageConfig;
+  }
+
+  public constructor(baseSystemMessage: string) {
     this.baseSystemMessageTemplate = baseSystemMessage;
     // Initialize with empty schema structure
     this.jsonSchema = {
@@ -78,6 +104,12 @@ export class SystemMessageBuilder {
       required: [],
       additionalProperties: false,
     };
+
+    // Apply default language configuration if available
+    // This ensures defaults are always applied unless explicitly overridden
+    if (SystemMessageBuilder.defaultLanguageConfig) {
+      this.withLanguageConfig(undefined);
+    }
   }
 
   /**
@@ -95,29 +127,36 @@ export class SystemMessageBuilder {
   /**
    * Apply language configuration to the system message and schema.
    * In strict mode, adds language enforcement instructions.
+   * In adaptive mode, adds language preference guidance.
    * Adds language detection fields to the schema.
+   * If no languageConfig is provided, uses the static default configuration.
    *
-   * @param languageConfig - Language configuration from the blueprint
+   * @param languageConfig - Language configuration from the blueprint (overrides default)
    * @returns this for chaining
    */
   public withLanguageConfig(languageConfig: LanguageConfig | undefined): this {
-    if (!languageConfig) {
+    // Use provided config, or fall back to default
+    const effectiveConfig =
+      languageConfig || SystemMessageBuilder.defaultLanguageConfig;
+
+    if (!effectiveConfig) {
       return this;
     }
 
-    if (languageConfig.mode === 'strict') {
-      // Store the template key and context for later rendering
-      const template = this.promptService.getPrompt(
-        PROMPT_KEYS.LANGUAGE_STRICT_AUGMENTATION,
-      );
-      this.augmentationTemplates.push({
-        template,
-        context: { defaultLanguage: languageConfig.defaultLanguage },
-      });
-    }
+    // Add language guidance based on mode
+    const promptKey =
+      effectiveConfig.mode === 'strict'
+        ? PROMPT_KEYS.LANGUAGE_STRICT_AUGMENTATION
+        : PROMPT_KEYS.LANGUAGE_ADAPTIVE_AUGMENTATION;
+
+    const template = SystemMessageBuilder.promptService.getPrompt(promptKey);
+    this.augmentationTemplates.push({
+      template,
+      context: { defaultLanguage: effectiveConfig.defaultLanguage },
+    });
 
     // Add language fields to schema
-    this.addLanguageFieldsToSchema(languageConfig);
+    this.addLanguageFieldsToSchema(effectiveConfig);
 
     return this;
   }
@@ -183,7 +222,7 @@ export class SystemMessageBuilder {
    */
   public buildSystemMessage(): string {
     // Render base message with context
-    const renderedBase = this.templateService.render(
+    const renderedBase = SystemMessageBuilder.templateService.render(
       this.baseSystemMessageTemplate,
       this.context,
     );
@@ -195,7 +234,10 @@ export class SystemMessageBuilder {
     // Render each augmentation with its specific context merged with global context
     const renderedAugmentations = this.augmentationTemplates.map((aug) => {
       const mergedContext = { ...this.context, ...aug.context };
-      return this.templateService.render(aug.template, mergedContext);
+      return SystemMessageBuilder.templateService.render(
+        aug.template,
+        mergedContext,
+      );
     });
 
     return renderedBase + '\n\n' + renderedAugmentations.join('\n\n');

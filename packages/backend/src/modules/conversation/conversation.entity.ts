@@ -42,7 +42,7 @@ export class Conversation {
   @Property({ nullable: true })
   blueprintId?: string;
 
-  // Track the detected/active language for this conversation (ISO code, e.g., 'en', 'de', 'fr')
+  // Track the detected/active language for this conversation (ISO-639 code, e.g., 'en-GB', 'de-DE', 'fr-FR')
   @Property({ nullable: true })
   currentLanguage?: string;
 

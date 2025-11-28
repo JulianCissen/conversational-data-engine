@@ -3,6 +3,7 @@ import { ConfigModule as NestConfigModule } from '@nestjs/config';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import config from './mikro-orm.config';
 import { LlmModule } from './core/llm/llm.module';
+import { LanguageModule } from './core/language/language.module';
 import { PromptModule } from './core/prompt/prompt.module';
 import { TemplateModule } from './core/template/template.module';
 import { PluginModule } from './core/plugin/plugin.module';
@@ -18,6 +19,7 @@ import { ConversationModule } from './modules/conversation/conversation.module';
     PromptModule,
     TemplateModule,
     LlmModule,
+    LanguageModule,
     PluginModule,
     BlueprintModule,
     IntelligenceModule,

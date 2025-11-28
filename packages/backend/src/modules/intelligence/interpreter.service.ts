@@ -280,11 +280,7 @@ export class InterpreterService {
   }): Promise<Record<string, any>> {
     const baseSystemPrompt = this.promptService.getPrompt(systemPromptKey);
 
-    const builder = new SystemMessageBuilder(
-      baseSystemPrompt,
-      this.promptService,
-      this.templateService,
-    );
+    const builder = new SystemMessageBuilder(baseSystemPrompt);
 
     // Add context if provided
     if (context) {

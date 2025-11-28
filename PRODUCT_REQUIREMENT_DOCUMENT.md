@@ -52,6 +52,16 @@ We are building an open-source, configuration-driven Conversational Form Platfor
 - **Accessibility:** WCAG 2.1 AA Compliant via Vuetify components.
 - **Interaction:** REST-based communication (`POST /chat`) with Pinia state management.
 
+### 3.5 Multi-Language Support
+- **Configuration Levels:**
+    - *System-Wide:* Default language mode and language code set via environment variables (`LANG_DEFAULT_MODE`, `LANG_DEFAULT_LANGUAGE`).
+    - *Blueprint-Level:* Individual services can override defaults with their own language configuration.
+- **Language Modes:**
+    - *Adaptive:* AI automatically detects and adapts to the user's language while collecting data.
+    - *Strict:* Enforces communication in a specific language only (e.g., legal/judicial compliance).
+- **ISO-639 Compliance:** All language codes use ISO-639 format (e.g., `en-GB`, `nl-NL`, `de-DE`, `fr-FR`).
+- **Detection:** System tracks the detected language for each conversation and can enforce language violations in strict mode.
+
 ## 4. Technical Architecture
 
 ### 4.1 Stack

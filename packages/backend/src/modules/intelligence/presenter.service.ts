@@ -116,11 +116,7 @@ export class PresenterService {
   ): Promise<string> {
     const baseSystemPrompt = this.promptService.getPrompt(promptKey);
 
-    const builder = new SystemMessageBuilder(
-      baseSystemPrompt,
-      this.promptService,
-      this.templateService,
-    )
+    const builder = new SystemMessageBuilder(baseSystemPrompt)
       .withContext(context)
       .withLanguageConfig(languageConfig);
 

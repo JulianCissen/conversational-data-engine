@@ -24,6 +24,7 @@ export const PROMPT_KEYS = {
 
   // Language enforcement prompts
   LANGUAGE_STRICT_AUGMENTATION: 'language.strict.augmentation',
+  LANGUAGE_ADAPTIVE_AUGMENTATION: 'language.adaptive.augmentation',
 } as const;
 
 /**
@@ -128,5 +129,9 @@ Respond with ONLY one of: the service ID, "LIST_SERVICES", or "UNCLEAR" - nothin
   {
     key: PROMPT_KEYS.LANGUAGE_STRICT_AUGMENTATION,
     value: `CRITICAL LANGUAGE REQUIREMENT: This conversation MUST be conducted in {{defaultLanguage}} only. The user is required to communicate in {{defaultLanguage}}. If they speak another language, you must detect this violation.`,
+  },
+  {
+    key: PROMPT_KEYS.LANGUAGE_ADAPTIVE_AUGMENTATION,
+    value: `LANGUAGE PREFERENCE: Please respond in {{defaultLanguage}} unless the user is clearly communicating in a different language. Adapt to the user's language naturally while defaulting to {{defaultLanguage}} for system messages and questions.`,
   },
 ];
