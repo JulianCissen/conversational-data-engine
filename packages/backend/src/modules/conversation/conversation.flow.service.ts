@@ -52,7 +52,9 @@ export class ConversationFlowService {
 
     // Handle new conversation - store welcome message first
     if (!conversationId) {
-      const welcomeMessage = this.presenterService.getWelcomeMessage();
+      const availableServices = this.blueprintService.getAllBlueprints();
+      const welcomeMessage =
+        await this.presenterService.generateWelcomeMessage(availableServices);
       this.conversationService.appendMessage(
         conversation,
         'ai',
@@ -196,8 +198,12 @@ export class ConversationFlowService {
     isComplete: boolean;
     data: Record<string, any>;
   }> {
-    const responseText =
-      this.presenterService.formatServiceList(availableServices);
+    const history = this.conversationService.getHistory(conversation);
+    const responseText = await this.presenterService.generateServiceList(
+      availableServices,
+      undefined,
+      history,
+    );
     this.conversationService.appendMessage(conversation, 'ai', responseText);
     await this.conversationService.persistConversation();
 
@@ -220,8 +226,12 @@ export class ConversationFlowService {
     isComplete: boolean;
     data: Record<string, any>;
   }> {
+    const history = this.conversationService.getHistory(conversation);
     const responseText =
-      this.presenterService.getServiceSelectionUnclearResponse();
+      await this.presenterService.generateUnclearSelectionResponse(
+        undefined,
+        history,
+      );
     this.conversationService.appendMessage(conversation, 'ai', responseText);
     await this.conversationService.persistConversation();
 
@@ -721,7 +731,12 @@ export class ConversationFlowService {
     conversation: Conversation,
   ): Promise<string> {
     if (nextStep.isComplete) {
-      return this.presenterService.getCompletionMessage();
+      const history = this.conversationService.getHistory(conversation);
+      return await this.presenterService.generateCompletionMessage(
+        blueprint.name,
+        blueprint.languageConfig,
+        history,
+      );
     }
 
     if (nextStep.nextFieldId) {

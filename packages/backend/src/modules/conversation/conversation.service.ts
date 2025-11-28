@@ -6,6 +6,7 @@ import { LlmMessage } from '../../core/llm/llm.types';
 import { ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
 import { BlueprintService } from '../blueprint/blueprint.service';
 import { WorkflowService } from '../workflow/workflow.service';
+import { PresenterService } from '../intelligence/presenter.service';
 
 /**
  * ConversationService
@@ -23,6 +24,7 @@ export class ConversationService {
     private readonly em: EntityManager,
     private readonly blueprintService: BlueprintService,
     private readonly workflowService: WorkflowService,
+    private readonly presenterService: PresenterService,
   ) {
     // Set the static BlueprintService reference for the entity getter
     Conversation.setBlueprintService(this.blueprintService);
@@ -141,5 +143,15 @@ export class ConversationService {
       throw new Error('Conversation not found');
     }
     await this.em.removeAndFlush(conversation);
+  }
+
+  /**
+   * Generate a welcome message with available services
+   */
+  async getWelcomeMessage(): Promise<string> {
+    const availableServices = this.blueprintService.getAllBlueprints();
+    return await this.presenterService.generateWelcomeMessage(
+      availableServices,
+    );
   }
 }

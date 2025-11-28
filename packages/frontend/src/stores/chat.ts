@@ -120,8 +120,8 @@ export const useChatStore = defineStore('chat', () => {
 
   async function fetchWelcomeMessage(): Promise<string> {
     try {
-      const response = await axios.get<{ welcomeMessage: string }>(`${API_URL}/conversation/config`)
-      return response.data.welcomeMessage
+      const response = await axios.get<{ message: string }>(`${API_URL}/conversation/welcome-message`)
+      return response.data.message
     } catch (error) {
       console.error('Error fetching welcome message:', error)
       return 'Welcome! How can I assist you today?'

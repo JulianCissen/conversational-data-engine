@@ -11,6 +11,10 @@ export const PROMPT_KEYS = {
   PRESENTER_ERROR: 'presenter.error',
   PRESENTER_CONTEXTUAL: 'presenter.contextual',
   PRESENTER_LANGUAGE_ANNOUNCEMENT: 'presenter.language.announcement',
+  PRESENTER_WELCOME: 'presenter.welcome',
+  PRESENTER_SERVICE_LIST: 'presenter.service.list',
+  PRESENTER_UNCLEAR_SELECTION: 'presenter.unclear.selection',
+  PRESENTER_COMPLETION: 'presenter.completion',
 
   // Intent classification prompt
   INTENT_CLASSIFICATION: 'intent.classification',
@@ -59,6 +63,41 @@ The current field is '{{questionTemplate}}'. The Context is: '{{aiContext}}'. Af
     value: `You are a helpful assistant. Generate a brief, polite announcement message in the specified language.
 
 Please write a brief message (1-2 sentences) in the language with ISO code "{{languageCode}}" that informs the user that this entire service/form must be completed in that language only, and all communication must be in that language. Be polite and professional.`,
+  },
+  {
+    key: PROMPT_KEYS.PRESENTER_WELCOME,
+    value: `You are a helpful assistant. Generate a friendly welcome message for a new user.
+
+Welcome the user and present them with the available services:
+{{serviceList}}
+
+Be warm and professional. Ask which service they would like to use. Keep it brief (2-3 sentences).`,
+  },
+  {
+    key: PROMPT_KEYS.PRESENTER_SERVICE_LIST,
+    value: `You are a helpful assistant. The user has asked what services are available.
+
+Here are the available services:
+{{serviceList}}
+
+Present this list to the user in a natural, helpful way and ask which service they would like to use. Be conversational and friendly.`,
+  },
+  {
+    key: PROMPT_KEYS.PRESENTER_UNCLEAR_SELECTION,
+    value: `You are a helpful assistant. The user tried to select a service, but their choice was unclear.
+
+Politely let them know you're not sure which service they're looking for. Suggest they can ask "What services are available?" to see all options, or ask them to clarify. Be helpful and friendly.`,
+  },
+  {
+    key: PROMPT_KEYS.PRESENTER_COMPLETION,
+    value: `You are a helpful assistant. The user has successfully completed providing all required information for the service: "{{serviceName}}".
+
+Generate a completion message that:
+1. Thanks the user
+2. Confirms that all information has been collected
+3. Mentions the service by name
+
+Be warm, professional, and reassuring. Keep it brief (2-3 sentences).`,
   },
   {
     key: PROMPT_KEYS.INTENT_CLASSIFICATION,

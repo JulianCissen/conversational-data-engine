@@ -1,7 +1,6 @@
 import { Controller, Post, Get, Delete, Body, Param } from '@nestjs/common';
 import { ConversationService } from './conversation.service';
 import { ConversationFlowService } from './conversation.flow.service';
-import { PresenterService } from '../intelligence/presenter.service';
 import { Conversation } from './conversation.entity';
 
 export class ConversationRequestDto {
@@ -14,10 +13,6 @@ export class ConversationResponseDto {
   text: string;
   isComplete: boolean;
   data: Record<string, any>;
-}
-
-export class ConversationConfigDto {
-  welcomeMessage: string;
 }
 
 export interface ConversationDto {
@@ -37,13 +32,12 @@ export class ConversationController {
   constructor(
     private readonly conversationService: ConversationService,
     private readonly conversationFlowService: ConversationFlowService,
-    private readonly presenterService: PresenterService,
   ) {}
 
-  @Get('config')
-  async getConfig(): Promise<ConversationConfigDto> {
-    const welcomeMessage = this.presenterService.getWelcomeMessage();
-    return Promise.resolve({ welcomeMessage });
+  @Get('welcome-message')
+  async getWelcomeMessage(): Promise<{ message: string }> {
+    const message = await this.conversationService.getWelcomeMessage();
+    return { message };
   }
 
   @Post()
