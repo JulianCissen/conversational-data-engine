@@ -35,7 +35,7 @@ export class ConversationFlowService {
     private readonly interpreterService: InterpreterService,
     private readonly presenterService: PresenterService,
     private readonly blueprintService: BlueprintService,
-    private readonly pluginManagerService: PluginManagerService,
+    pluginManagerService: PluginManagerService,
   ) {
     this.stateMachine = new ConversationStateMachine();
     this.pluginOrchestrator = new PluginOrchestrator(pluginManagerService);
