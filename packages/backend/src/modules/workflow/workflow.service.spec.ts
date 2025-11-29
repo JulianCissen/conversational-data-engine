@@ -1,13 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkflowService } from './workflow.service';
 import { ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
+import { ValidationService } from '../../core/validation/validation.service';
 
 describe('WorkflowService', () => {
   let service: WorkflowService;
+  let mockValidationService: jest.Mocked<ValidationService>;
 
   beforeEach(async () => {
+    mockValidationService = {
+      validateValue: jest.fn().mockReturnValue(true),
+      clearCache: jest.fn(),
+    } as unknown as jest.Mocked<ValidationService>;
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [WorkflowService],
+      providers: [
+        WorkflowService,
+        { provide: ValidationService, useValue: mockValidationService },
+      ],
     }).compile();
 
     service = module.get<WorkflowService>(WorkflowService);
@@ -357,6 +367,900 @@ describe('WorkflowService', () => {
         nextFieldId: null,
         isComplete: true,
       });
+    });
+  });
+
+  describe('Field Satisfaction Edge Cases', () => {
+    it('should handle field that becomes invisible after being answered', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'dynamic-visibility',
+        name: 'Dynamic Visibility Service',
+        fields: [
+          {
+            id: 'toggle',
+            type: 'boolean',
+            questionTemplate: 'Enable feature?',
+            aiContext: 'Toggle feature',
+            validation: {},
+          },
+          {
+            id: 'featureDetail',
+            type: 'string',
+            questionTemplate: 'Feature details?',
+            aiContext: 'Only shown when toggle is true',
+            validation: {},
+            condition: {
+              '==': [{ var: 'toggle' }, true],
+            },
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      // First, toggle is true, so featureDetail should be visible
+      const dataWithToggleTrue = { toggle: true };
+      const resultTrue = service.determineNextStep(
+        blueprint,
+        dataWithToggleTrue,
+      );
+      expect(resultTrue).toEqual({
+        nextFieldId: 'featureDetail',
+        isComplete: false,
+      });
+
+      // Now toggle is false, even if featureDetail has a value, it's hidden
+      const dataWithToggleFalse = {
+        toggle: false,
+        featureDetail: 'some value',
+      };
+      const resultFalse = service.determineNextStep(
+        blueprint,
+        dataWithToggleFalse,
+      );
+      expect(resultFalse).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+    });
+
+    it('should handle field visibility alternating based on data changes', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'alternating-visibility',
+        name: 'Alternating Visibility Service',
+        fields: [
+          {
+            id: 'userType',
+            type: 'string',
+            questionTemplate: 'Are you admin or user?',
+            aiContext: 'User type',
+            validation: {},
+          },
+          {
+            id: 'adminCode',
+            type: 'string',
+            questionTemplate: 'Admin code?',
+            aiContext: 'Only for admin',
+            validation: {},
+            condition: {
+              '==': [{ var: 'userType' }, 'admin'],
+            },
+          },
+          {
+            id: 'userName',
+            type: 'string',
+            questionTemplate: 'User name?',
+            aiContext: 'Only for regular user',
+            validation: {},
+            condition: {
+              '==': [{ var: 'userType' }, 'user'],
+            },
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      // Admin path
+      const adminData = { userType: 'admin' };
+      const adminResult = service.determineNextStep(blueprint, adminData);
+      expect(adminResult).toEqual({
+        nextFieldId: 'adminCode',
+        isComplete: false,
+      });
+
+      // User path
+      const userData = { userType: 'user' };
+      const userResult = service.determineNextStep(blueprint, userData);
+      expect(userResult).toEqual({
+        nextFieldId: 'userName',
+        isComplete: false,
+      });
+
+      // Neither path (invalid type)
+      const invalidData = { userType: 'guest' };
+      const invalidResult = service.determineNextStep(blueprint, invalidData);
+      expect(invalidResult).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+    });
+  });
+
+  describe('Field Ordering Scenarios', () => {
+    it('should handle blueprint with all conditional fields', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'all-conditional',
+        name: 'All Conditional Service',
+        fields: [
+          {
+            id: 'field1',
+            type: 'string',
+            questionTemplate: 'Field 1?',
+            aiContext: 'Never visible',
+            validation: {},
+            condition: {
+              '==': [{ var: 'trigger' }, 'show'],
+            },
+          },
+          {
+            id: 'field2',
+            type: 'string',
+            questionTemplate: 'Field 2?',
+            aiContext: 'Also never visible',
+            validation: {},
+            condition: {
+              '==': [{ var: 'trigger' }, 'show'],
+            },
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      // No trigger set, all fields hidden
+      const result = service.determineNextStep(blueprint, {});
+      expect(result).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+
+      // Trigger set, fields become visible
+      const resultWithTrigger = service.determineNextStep(blueprint, {
+        trigger: 'show',
+      });
+      expect(resultWithTrigger).toEqual({
+        nextFieldId: 'field1',
+        isComplete: false,
+      });
+    });
+
+    it('should handle interleaved conditional and unconditional fields', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'interleaved',
+        name: 'Interleaved Service',
+        fields: [
+          {
+            id: 'always1',
+            type: 'string',
+            questionTemplate: 'Always 1?',
+            aiContext: 'Always shown',
+            validation: {},
+          },
+          {
+            id: 'conditional1',
+            type: 'string',
+            questionTemplate: 'Conditional 1?',
+            aiContext: 'Sometimes shown',
+            validation: {},
+            condition: {
+              '==': [{ var: 'showExtra' }, true],
+            },
+          },
+          {
+            id: 'always2',
+            type: 'string',
+            questionTemplate: 'Always 2?',
+            aiContext: 'Always shown',
+            validation: {},
+          },
+          {
+            id: 'conditional2',
+            type: 'string',
+            questionTemplate: 'Conditional 2?',
+            aiContext: 'Sometimes shown',
+            validation: {},
+            condition: {
+              '==': [{ var: 'showExtra' }, true],
+            },
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      // Without extra fields
+      const dataWithoutExtra = { always1: 'A', always2: 'B' };
+      const resultWithout = service.determineNextStep(
+        blueprint,
+        dataWithoutExtra,
+      );
+      expect(resultWithout).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+
+      // With extra fields enabled
+      const dataWithExtra = { always1: 'A', showExtra: true };
+      const resultWith = service.determineNextStep(blueprint, dataWithExtra);
+      expect(resultWith).toEqual({
+        nextFieldId: 'conditional1',
+        isComplete: false,
+      });
+    });
+
+    it('should handle conditional field that appears before its dependency', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'forward-reference',
+        name: 'Forward Reference Service',
+        fields: [
+          {
+            id: 'dependentField',
+            type: 'string',
+            questionTemplate: 'Dependent?',
+            aiContext: 'Depends on later field',
+            validation: {},
+            condition: {
+              '==': [{ var: 'trigger' }, 'yes'],
+            },
+          },
+          {
+            id: 'trigger',
+            type: 'string',
+            questionTemplate: 'Trigger?',
+            aiContext: 'Controls earlier field',
+            validation: {},
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      // Trigger not set - dependent field hidden, trigger shown
+      const result1 = service.determineNextStep(blueprint, {});
+      expect(result1).toEqual({
+        nextFieldId: 'trigger',
+        isComplete: false,
+      });
+
+      // Trigger set to 'no' - dependent field still hidden
+      const result2 = service.determineNextStep(blueprint, { trigger: 'no' });
+      expect(result2).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+
+      // Trigger set to 'yes' - dependent field shown
+      const result3 = service.determineNextStep(blueprint, { trigger: 'yes' });
+      expect(result3).toEqual({
+        nextFieldId: 'dependentField',
+        isComplete: false,
+      });
+    });
+  });
+
+  describe('Data Immutability', () => {
+    it('should not mutate input data object', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'immutability-test',
+        name: 'Immutability Test',
+        fields: [
+          {
+            id: 'field1',
+            type: 'string',
+            questionTemplate: 'Field 1?',
+            aiContext: 'First field',
+            validation: {},
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      const originalData = { existingField: 'value' };
+      const dataCopy = { ...originalData };
+
+      service.determineNextStep(blueprint, originalData);
+
+      expect(originalData).toEqual(dataCopy);
+      expect(Object.keys(originalData)).toEqual(Object.keys(dataCopy));
+    });
+
+    it('should not mutate blueprint object', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'immutability-test',
+        name: 'Immutability Test',
+        fields: [
+          {
+            id: 'field1',
+            type: 'string',
+            questionTemplate: 'Field 1?',
+            aiContext: 'First field',
+            validation: {},
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      const blueprintCopy = JSON.parse(
+        JSON.stringify(blueprint),
+      ) as ServiceBlueprint;
+
+      service.determineNextStep(blueprint, {});
+
+      expect(blueprint).toEqual(blueprintCopy);
+    });
+
+    it('should return consistent results for same inputs (pure function)', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'pure-function-test',
+        name: 'Pure Function Test',
+        fields: [
+          {
+            id: 'field1',
+            type: 'string',
+            questionTemplate: 'Field 1?',
+            aiContext: 'First field',
+            validation: {},
+          },
+          {
+            id: 'field2',
+            type: 'string',
+            questionTemplate: 'Field 2?',
+            aiContext: 'Second field',
+            validation: {},
+            condition: {
+              '==': [{ var: 'field1' }, 'trigger'],
+            },
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      const data = { field1: 'trigger' };
+
+      const result1 = service.determineNextStep(blueprint, data);
+      const result2 = service.determineNextStep(blueprint, data);
+      const result3 = service.determineNextStep(blueprint, data);
+
+      expect(result1).toEqual(result2);
+      expect(result2).toEqual(result3);
+      expect(result1).toEqual({
+        nextFieldId: 'field2',
+        isComplete: false,
+      });
+    });
+  });
+
+  describe('isFieldVisible Edge Cases', () => {
+    it('should handle truthy non-boolean values as visible', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'truthy-test',
+        name: 'Truthy Test',
+        fields: [
+          {
+            id: 'numberField',
+            type: 'string',
+            questionTemplate: 'Number field?',
+            aiContext: 'Shown when var returns truthy number',
+            validation: {},
+            condition: {
+              var: 'count',
+            },
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      // Non-zero number is truthy
+      const result1 = service.determineNextStep(blueprint, { count: 5 });
+      expect(result1).toEqual({
+        nextFieldId: 'numberField',
+        isComplete: false,
+      });
+
+      // String is truthy
+      const result2 = service.determineNextStep(blueprint, { count: 'yes' });
+      expect(result2).toEqual({
+        nextFieldId: 'numberField',
+        isComplete: false,
+      });
+
+      // Array is truthy
+      const result3 = service.determineNextStep(blueprint, {
+        count: [1, 2, 3],
+      });
+      expect(result3).toEqual({
+        nextFieldId: 'numberField',
+        isComplete: false,
+      });
+
+      // Object is truthy
+      const result4 = service.determineNextStep(blueprint, {
+        count: { key: 'value' },
+      });
+      expect(result4).toEqual({
+        nextFieldId: 'numberField',
+        isComplete: false,
+      });
+    });
+
+    it('should handle falsy non-boolean values as invisible', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'falsy-test',
+        name: 'Falsy Test',
+        fields: [
+          {
+            id: 'field',
+            type: 'string',
+            questionTemplate: 'Field?',
+            aiContext: 'Hidden when var returns falsy',
+            validation: {},
+            condition: {
+              var: 'trigger',
+            },
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      // Zero is falsy
+      const result1 = service.determineNextStep(blueprint, { trigger: 0 });
+      expect(result1).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+
+      // Empty string is falsy
+      const result2 = service.determineNextStep(blueprint, { trigger: '' });
+      expect(result2).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+
+      // False is falsy
+      const result3 = service.determineNextStep(blueprint, { trigger: false });
+      expect(result3).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+
+      // Null is falsy
+      const result4 = service.determineNextStep(blueprint, { trigger: null });
+      expect(result4).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+
+      // Undefined is falsy
+      const result5 = service.determineNextStep(blueprint, {
+        trigger: undefined,
+      });
+      expect(result5).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+    });
+
+    it('should treat undefined condition as always visible', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'no-condition',
+        name: 'No Condition',
+        fields: [
+          {
+            id: 'field1',
+            type: 'string',
+            questionTemplate: 'Field 1?',
+            aiContext: 'No condition',
+            validation: {},
+            condition: undefined,
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      const result = service.determineNextStep(blueprint, {});
+      expect(result).toEqual({
+        nextFieldId: 'field1',
+        isComplete: false,
+      });
+    });
+
+    it('should treat missing condition property as always visible', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'missing-condition',
+        name: 'Missing Condition',
+        fields: [
+          {
+            id: 'field1',
+            type: 'string',
+            questionTemplate: 'Field 1?',
+            aiContext: 'Missing condition property',
+            validation: {},
+            // Note: condition property is not present at all
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      const result = service.determineNextStep(blueprint, {});
+      expect(result).toEqual({
+        nextFieldId: 'field1',
+        isComplete: false,
+      });
+    });
+
+    it('should treat null condition as falsy (field invisible)', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'null-condition',
+        name: 'Null Condition',
+        fields: [
+          {
+            id: 'field1',
+            type: 'string',
+            questionTemplate: 'Field 1?',
+            aiContext: 'Null condition',
+            validation: {},
+            condition: null,
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      const result = service.determineNextStep(blueprint, {});
+      expect(result).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+    });
+  });
+
+  describe('validateValue Delegation', () => {
+    it('should delegate to ValidationService with correct parameters', () => {
+      const field = {
+        id: 'testField',
+        type: 'string' as const,
+        questionTemplate: 'Test?',
+        aiContext: 'Test field',
+        validation: { minLength: 5 },
+      };
+      const value = 'test value';
+
+      const result = service.validateValue(value, field);
+
+      expect(mockValidationService.validateValue.mock.calls[0]).toEqual([
+        value,
+        field,
+      ]);
+      expect(mockValidationService.validateValue.mock.calls.length).toBe(1);
+      expect(result).toBe(true);
+    });
+
+    it('should return validation result from ValidationService', () => {
+      const field = {
+        id: 'testField',
+        type: 'number' as const,
+        questionTemplate: 'Test?',
+        aiContext: 'Test field',
+        validation: { min: 0 },
+      };
+
+      // Test valid case
+      mockValidationService.validateValue.mockReturnValue(true);
+      expect(service.validateValue(10, field)).toBe(true);
+
+      // Test invalid case
+      mockValidationService.validateValue.mockReturnValue(false);
+      expect(service.validateValue(-5, field)).toBe(false);
+    });
+
+    it('should handle different value types', () => {
+      const stringField = {
+        id: 'string',
+        type: 'string' as const,
+        questionTemplate: 'String?',
+        aiContext: 'String field',
+        validation: {},
+      };
+      const numberField = {
+        id: 'number',
+        type: 'number' as const,
+        questionTemplate: 'Number?',
+        aiContext: 'Number field',
+        validation: {},
+      };
+      const booleanField = {
+        id: 'boolean',
+        type: 'boolean' as const,
+        questionTemplate: 'Boolean?',
+        aiContext: 'Boolean field',
+        validation: {},
+      };
+      const dateField = {
+        id: 'date',
+        type: 'date' as const,
+        questionTemplate: 'Date?',
+        aiContext: 'Date field',
+        validation: {},
+      };
+
+      mockValidationService.validateValue.mockReturnValue(true);
+
+      service.validateValue('text', stringField);
+      service.validateValue(42, numberField);
+      service.validateValue(true, booleanField);
+      service.validateValue(new Date(), dateField);
+
+      expect(mockValidationService.validateValue.mock.calls.length).toBe(4);
+    });
+  });
+
+  describe('Integration Scenarios', () => {
+    it('should handle partially filled data resuming mid-flow', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'resume-flow',
+        name: 'Resume Flow Service',
+        fields: [
+          {
+            id: 'step1',
+            type: 'string',
+            questionTemplate: 'Step 1?',
+            aiContext: 'First step',
+            validation: {},
+          },
+          {
+            id: 'step2',
+            type: 'string',
+            questionTemplate: 'Step 2?',
+            aiContext: 'Second step',
+            validation: {},
+          },
+          {
+            id: 'step3',
+            type: 'string',
+            questionTemplate: 'Step 3?',
+            aiContext: 'Third step',
+            validation: {},
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      // Starting from scratch
+      const result1 = service.determineNextStep(blueprint, {});
+      expect(result1.nextFieldId).toBe('step1');
+
+      // Resuming after step 1
+      const result2 = service.determineNextStep(blueprint, { step1: 'done' });
+      expect(result2.nextFieldId).toBe('step2');
+
+      // Resuming after steps 1 and 2
+      const result3 = service.determineNextStep(blueprint, {
+        step1: 'done',
+        step2: 'done',
+      });
+      expect(result3.nextFieldId).toBe('step3');
+
+      // All steps complete
+      const result4 = service.determineNextStep(blueprint, {
+        step1: 'done',
+        step2: 'done',
+        step3: 'done',
+      });
+      expect(result4).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+    });
+
+    it('should skip multiple consecutive conditional fields', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'skip-multiple',
+        name: 'Skip Multiple Service',
+        fields: [
+          {
+            id: 'trigger',
+            type: 'string',
+            questionTemplate: 'Trigger?',
+            aiContext: 'Controls multiple fields',
+            validation: {},
+          },
+          {
+            id: 'conditional1',
+            type: 'string',
+            questionTemplate: 'Conditional 1?',
+            aiContext: 'Only if trigger is active',
+            validation: {},
+            condition: {
+              '==': [{ var: 'trigger' }, 'active'],
+            },
+          },
+          {
+            id: 'conditional2',
+            type: 'string',
+            questionTemplate: 'Conditional 2?',
+            aiContext: 'Only if trigger is active',
+            validation: {},
+            condition: {
+              '==': [{ var: 'trigger' }, 'active'],
+            },
+          },
+          {
+            id: 'conditional3',
+            type: 'string',
+            questionTemplate: 'Conditional 3?',
+            aiContext: 'Only if trigger is active',
+            validation: {},
+            condition: {
+              '==': [{ var: 'trigger' }, 'active'],
+            },
+          },
+          {
+            id: 'finalField',
+            type: 'string',
+            questionTemplate: 'Final?',
+            aiContext: 'Always shown',
+            validation: {},
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      // All conditionals hidden, skip to finalField
+      const result = service.determineNextStep(blueprint, {
+        trigger: 'inactive',
+      });
+      expect(result).toEqual({
+        nextFieldId: 'finalField',
+        isComplete: false,
+      });
+    });
+
+    it('should handle complex field dependency chains', () => {
+      const blueprint: ServiceBlueprint = {
+        id: 'dependency-chain',
+        name: 'Dependency Chain Service',
+        fields: [
+          {
+            id: 'hasVehicle',
+            type: 'boolean',
+            questionTemplate: 'Do you have a vehicle?',
+            aiContext: 'Vehicle ownership',
+            validation: {},
+          },
+          {
+            id: 'vehicleType',
+            type: 'string',
+            questionTemplate: 'What type of vehicle?',
+            aiContext: 'Only if has vehicle',
+            validation: {},
+            condition: {
+              '==': [{ var: 'hasVehicle' }, true],
+            },
+          },
+          {
+            id: 'carBrand',
+            type: 'string',
+            questionTemplate: 'What car brand?',
+            aiContext: 'Only if vehicle is car',
+            validation: {},
+            condition: {
+              and: [
+                { '==': [{ var: 'hasVehicle' }, true] },
+                { '==': [{ var: 'vehicleType' }, 'car'] },
+              ],
+            },
+          },
+          {
+            id: 'motorcycleBrand',
+            type: 'string',
+            questionTemplate: 'What motorcycle brand?',
+            aiContext: 'Only if vehicle is motorcycle',
+            validation: {},
+            condition: {
+              and: [
+                { '==': [{ var: 'hasVehicle' }, true] },
+                { '==': [{ var: 'vehicleType' }, 'motorcycle'] },
+              ],
+            },
+          },
+          {
+            id: 'registrationYear',
+            type: 'number',
+            questionTemplate: 'Registration year?',
+            aiContext: 'Only if has vehicle',
+            validation: {},
+            condition: {
+              '==': [{ var: 'hasVehicle' }, true],
+            },
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+
+      // No vehicle - skip all
+      const result1 = service.determineNextStep(blueprint, {
+        hasVehicle: false,
+      });
+      expect(result1).toEqual({
+        nextFieldId: null,
+        isComplete: true,
+      });
+
+      // Has vehicle, type is car
+      const result2 = service.determineNextStep(blueprint, {
+        hasVehicle: true,
+        vehicleType: 'car',
+      });
+      expect(result2.nextFieldId).toBe('carBrand');
+
+      // Has vehicle, car brand filled, should skip motorcycle and ask registration
+      const result3 = service.determineNextStep(blueprint, {
+        hasVehicle: true,
+        vehicleType: 'car',
+        carBrand: 'Toyota',
+      });
+      expect(result3.nextFieldId).toBe('registrationYear');
+
+      // Has vehicle, type is motorcycle
+      const result4 = service.determineNextStep(blueprint, {
+        hasVehicle: true,
+        vehicleType: 'motorcycle',
+      });
+      expect(result4.nextFieldId).toBe('motorcycleBrand');
+    });
+
+    it('should handle large blueprint with many fields efficiently', () => {
+      // Create a blueprint with 50 fields
+      const fields = Array.from({ length: 50 }, (_, i) => ({
+        id: `field${i}`,
+        type: 'string' as const,
+        questionTemplate: `Field ${i}?`,
+        aiContext: `Field ${i}`,
+        validation: {},
+      }));
+
+      const blueprint: ServiceBlueprint = {
+        id: 'large-blueprint',
+        name: 'Large Blueprint',
+        fields,
+        plugins: [],
+        hooks: {},
+      };
+
+      // Should find first unanswered field efficiently
+      const partialData = Object.fromEntries(
+        Array.from({ length: 25 }, (_, i) => [`field${i}`, `value${i}`]),
+      );
+
+      const startTime = Date.now();
+      const result = service.determineNextStep(blueprint, partialData);
+      const endTime = Date.now();
+
+      expect(result.nextFieldId).toBe('field25');
+      expect(result.isComplete).toBe(false);
+      // Should complete in reasonable time (less than 100ms for 50 fields)
+      expect(endTime - startTime).toBeLessThan(100);
     });
   });
 
