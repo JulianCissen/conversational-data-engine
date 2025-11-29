@@ -37,7 +37,7 @@ export const useChatStore = defineStore('chat', () => {
   const currentFormData = ref<Record<string, any>>({})
 
   // Backend API URL
-  const API_URL = 'http://localhost:3001'
+  const API_URL = 'http://localhost:3100'
 
   // Actions
   async function sendMessage(text: string) {

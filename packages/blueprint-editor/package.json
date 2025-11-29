@@ -1,0 +1,56 @@
+{
+  "name": "@conversational-data-engine/blueprint-editor",
+  "version": "0.1.0",
+  "description": "Blueprint Editor for Conversational Data Engine",
+  "keywords": [
+    "conversational",
+    "blueprint",
+    "editor",
+    "vue",
+    "configuration"
+  ],
+  "homepage": "https://github.com/JulianCissen/conversational-data-engine#readme",
+  "bugs": {
+    "url": "https://github.com/JulianCissen/conversational-data-engine/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JulianCissen/conversational-data-engine.git",
+    "directory": "packages/blueprint-editor"
+  },
+  "license": "UNLICENSED",
+  "author": "Julian Cissen <107254512+JulianCissen@users.noreply.github.com>",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "run-p type-check \"build-only {@}\" --",
+    "preview": "vite preview",
+    "build-only": "vite build",
+    "type-check": "vue-tsc --build --force"
+  },
+  "dependencies": {
+    "@fontsource/roboto": "5.2.7",
+    "@mdi/font": "7.4.47",
+    "vue": "^3.5.21",
+    "vue-router": "^4.5.1",
+    "vuetify": "^3.10.1"
+  },
+  "devDependencies": {
+    "@tsconfig/node22": "^22.0.0",
+    "@types/node": "^22.9.0",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/tsconfig": "^0.8.1",
+    "eslint": "^9.35.0",
+    "eslint-config-vuetify": "^4.2.0",
+    "npm-run-all2": "^8.0.4",
+    "sass-embedded": "^1.92.1",
+    "typescript": "~5.9.2",
+    "unplugin-fonts": "^1.4.0",
+    "unplugin-vue-components": "^29.0.0",
+    "unplugin-vue-router": "^0.15.0",
+    "vite": "^7.1.5",
+    "vite-plugin-vuetify": "^2.1.2",
+    "vue-tsc": "^3.0.7"
+  },
+  "private": true
+}
