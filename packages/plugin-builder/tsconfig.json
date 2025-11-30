@@ -11,6 +11,10 @@
     "forceConsistentCasingInFileNames": true,
     "composite": true
   },
+  "watchOptions": {
+    "watchFile": "dynamicPriorityPolling",
+    "watchDirectory": "dynamicPriorityPolling"
+  },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

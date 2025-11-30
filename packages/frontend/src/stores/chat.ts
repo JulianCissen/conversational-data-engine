@@ -36,8 +36,8 @@ export const useChatStore = defineStore('chat', () => {
   const isLoading = ref<boolean>(false)
   const currentFormData = ref<Record<string, any>>({})
 
-  // Backend API URL
-  const API_URL = 'http://localhost:3100'
+  // Backend API URL from environment variable
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3100'
 
   // Actions
   async function sendMessage(text: string) {

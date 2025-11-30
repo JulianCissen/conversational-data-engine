@@ -3,4 +3,3 @@
  * All type definitions are maintained in @conversational-data-engine/types
  */
 export * from '@conversational-data-engine/types';
-

@@ -21,7 +21,12 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    "composite": true
+    "composite": true,
+    "preserveWatchOutput": true
+  },
+  "watchOptions": {
+    "watchFile": "dynamicPriorityPolling",
+    "watchDirectory": "dynamicPriorityPolling"
   },
   "references": [
     { "path": "../types" },

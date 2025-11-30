@@ -1,0 +1,13 @@
+# Docker ignore for base image - only allow package.json files
+# Everything is ignored by default, then we specifically include what we need
+
+# Ignore everything
+**/*
+
+# Allow package.json and package-lock.json files
+!package.json
+!package-lock.json
+!packages/*/package.json
+!packages/*/package-lock.json
+!packages/plugins/*/package.json
+!packages/plugins/*/package-lock.json

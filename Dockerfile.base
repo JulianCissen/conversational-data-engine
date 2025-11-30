@@ -1,0 +1,23 @@
+# Base image for monorepo - installs all dependencies
+FROM node:24-alpine AS base
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files for dependency installation
+# Uses .dockerignore.base to only include package.json files
+COPY package*.json ./
+COPY packages/backend/package*.json ./packages/backend/
+COPY packages/frontend/package*.json ./packages/frontend/
+COPY packages/blueprint-editor/package*.json ./packages/blueprint-editor/
+COPY packages/plugin-builder/package*.json ./packages/plugin-builder/
+COPY packages/types/package*.json ./packages/types/
+COPY packages/ui-shared/package*.json ./packages/ui-shared/
+COPY packages/plugins/boilerplate/package*.json ./packages/plugins/boilerplate/
+COPY packages/plugins/http-caller/package*.json ./packages/plugins/http-caller/
+
+# Install all dependencies including optional ones (workspaces will be linked)
+RUN npm ci --include=optional
+
+# This base image will be used by all other containers
+# They will inherit the installed node_modules

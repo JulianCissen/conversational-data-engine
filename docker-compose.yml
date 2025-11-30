@@ -1,6 +1,5 @@
-version: '3.8'
-
 services:
+  # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
     container_name: conversational-db
@@ -13,6 +12,127 @@ services:
       - "5432:5432"
     volumes:
       - conversational_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d form_engine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Plugin Builder Watcher
+  builder-plugin-builder:
+    build:
+      context: .
+      dockerfile: packages/plugin-builder/Dockerfile
+    container_name: builder-plugin-builder
+    working_dir: /app
+    volumes:
+      # Mount host workspace so we can edit files and see builds
+      - .:/app
+      # Override node_modules with a volume to use the container's version
+      - /app/node_modules
+
+  # Types Watcher
+  builder-types:
+    build:
+      context: .
+      dockerfile: packages/types/Dockerfile
+    container_name: builder-types
+    working_dir: /app
+    volumes:
+      # Mount host workspace so we can edit files and see builds
+      - .:/app
+      # Override node_modules with a volume to use the container's version
+      - /app/node_modules
+
+  # UI Shared Watcher
+  builder-ui-shared:
+    build:
+      context: .
+      dockerfile: packages/ui-shared/Dockerfile
+    container_name: builder-ui-shared
+    working_dir: /app
+    volumes:
+      # Mount host workspace so we can edit files and see builds
+      - .:/app
+      # Override node_modules with a volume to use the container's version
+      - /app/node_modules
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+      target: development
+    container_name: backend
+    working_dir: /app
+    ports:
+      - "3100:3100"
+    volumes:
+      # Mount host workspace so we can edit files and see builds
+      - .:/app
+      # Override node_modules with a volume to use the container's version
+      - /app/node_modules
+    env_file:
+      # Load environment variables from backend's .env file
+      - ./packages/backend/.env
+    environment:
+      # Database configuration (Docker-specific overrides)
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=form_engine
+      - DB_USER=admin
+      - DB_PASSWORD=password123
+      # Server configuration
+      - PORT=3100
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      builder-plugin-builder:
+        condition: service_started
+      builder-types:
+        condition: service_started
+
+  # Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+    container_name: frontend
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount host workspace so we can edit files and see builds
+      - .:/app
+      # Override node_modules with a volume to use the container's version
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:3100
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+
+  # Blueprint Editor
+  blueprint-editor:
+    build:
+      context: .
+      dockerfile: packages/blueprint-editor/Dockerfile
+    container_name: blueprint-editor
+    working_dir: /app
+    ports:
+      - "3010:3010"
+    volumes:
+      # Mount host workspace so we can edit files and see builds
+      - .:/app
+      # Override node_modules with a volume to use the container's version
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - builder-types
+      - builder-ui-shared
 
 volumes:
   conversational_db_data:
+

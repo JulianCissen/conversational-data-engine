@@ -1,1 +1,1 @@
-export * from './blueprint';
+export * from './blueprint.js';
