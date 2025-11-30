@@ -393,4 +393,4 @@ Potential improvements for the plugin system:
 
 ## License
 
-MIT
+UNLICENSED
