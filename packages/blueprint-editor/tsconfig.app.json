@@ -10,5 +10,9 @@
     "paths": {
       "@/*": ["./src/*"]
     }
-  }
+  },
+  "references": [
+    { "path": "../types" },
+    { "path": "../ui-shared" }
+  ]
 }
