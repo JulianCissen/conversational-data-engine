@@ -47,6 +47,8 @@ export default defineConfig({
       'unplugin-vue-router/runtime',
       'unplugin-vue-router/data-loaders',
       'unplugin-vue-router/data-loaders/basic',
+      '@conversational-data-engine/types',
+      '@conversational-data-engine/ui-shared',
     ],
   },
   define: { 'process.env': {} },

@@ -1,0 +1,45 @@
+{
+  "name": "@conversational-data-engine/types",
+  "version": "0.1.0",
+  "description": "Shared TypeScript type definitions for Conversational Data Engine",
+  "keywords": [
+    "types",
+    "typescript",
+    "zod",
+    "schema"
+  ],
+  "homepage": "https://github.com/JulianCissen/conversational-data-engine#readme",
+  "bugs": {
+    "url": "https://github.com/JulianCissen/conversational-data-engine/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JulianCissen/conversational-data-engine.git",
+    "directory": "packages/types"
+  },
+  "license": "UNLICENSED",
+  "author": "Julian Cissen <107254512+JulianCissen@users.noreply.github.com>",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2"
+  }
+}

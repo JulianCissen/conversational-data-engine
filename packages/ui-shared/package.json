@@ -1,0 +1,59 @@
+{
+  "name": "@conversational-data-engine/ui-shared",
+  "version": "0.1.0",
+  "description": "Shared UI components and utilities for Conversational Data Engine frontends",
+  "keywords": [
+    "vue",
+    "vuetify",
+    "ui",
+    "components"
+  ],
+  "homepage": "https://github.com/JulianCissen/conversational-data-engine#readme",
+  "bugs": {
+    "url": "https://github.com/JulianCissen/conversational-data-engine/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JulianCissen/conversational-data-engine.git",
+    "directory": "packages/ui-shared"
+  },
+  "license": "UNLICENSED",
+  "author": "Julian Cissen <107254512+JulianCissen@users.noreply.github.com>",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./vuetify": {
+      "import": "./dist/vuetify.js",
+      "types": "./dist/vuetify.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vue-tsc && vite build",
+    "dev": "vite build --watch",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "vue": "^3.5.21",
+    "vuetify": "^3.10.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/tsconfig": "^0.8.1",
+    "typescript": "~5.9.2",
+    "vite": "^7.1.5",
+    "vite-plugin-dts": "^4.3.0",
+    "vue-tsc": "^3.0.7"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0",
+    "vuetify": "^3.10.0"
+  }
+}

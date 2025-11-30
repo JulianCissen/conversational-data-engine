@@ -1,19 +1,8 @@
 /**
- * plugins/vuetify.ts
- *
- * Framework documentation: https://vuetifyjs.com`
+ * Vuetify plugin configuration
+ * Uses shared theme configuration for consistency across all frontends
  */
 
-// Styles
-import '@mdi/font/css/materialdesignicons.css'
-import 'vuetify/styles'
+import vuetifyConfig from '@conversational-data-engine/ui-shared/vuetify';
 
-// Composables
-import { createVuetify } from 'vuetify'
-
-// https://vuetifyjs.com/en/introduction/why-vuetify/#feature-guides
-export default createVuetify({
-  theme: {
-    defaultTheme: 'system',
-  },
-})
+export default vuetifyConfig;

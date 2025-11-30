@@ -29,11 +29,15 @@
     "type-check": "vue-tsc --build --force"
   },
   "dependencies": {
+    "@conversational-data-engine/types": "*",
+    "@conversational-data-engine/ui-shared": "*",
     "@fontsource/roboto": "5.2.7",
     "@mdi/font": "7.4.47",
+    "pinia": "^3.0.4",
     "vue": "^3.5.21",
-    "vue-router": "^4.5.1",
-    "vuetify": "^3.10.1"
+    "vue-router": "^4.6.3",
+    "vuetify": "^3.10.1",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.0",

@@ -11,8 +11,13 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    FieldListCard: typeof import('./components/editor/FieldListCard.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
+    HooksCard: typeof import('./components/editor/HooksCard.vue')['default']
+    JsonPreviewCard: typeof import('./components/editor/JsonPreviewCard.vue')['default']
+    PluginListCard: typeof import('./components/editor/PluginListCard.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ServiceMetadataCard: typeof import('./components/editor/ServiceMetadataCard.vue')['default']
   }
 }

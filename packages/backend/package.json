@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@conversational-data-engine/plugin-builder": "*",
+    "@conversational-data-engine/types": "*",
     "@langchain/core": "^1.0.6",
     "@langchain/openai": "^1.1.2",
     "@mikro-orm/core": "^6.6.0",

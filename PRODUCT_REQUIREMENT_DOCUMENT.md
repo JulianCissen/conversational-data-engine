@@ -65,13 +65,16 @@ We are building an open-source, configuration-driven Conversational Form Platfor
 ## 4. Technical Architecture
 
 ### 4.1 Stack
-- **Repository:** Monorepo (`packages/backend`, `packages/frontend`).
+- **Repository:** Monorepo (`packages/backend`, `packages/frontend`, `packages/blueprint-editor`, `packages/types`, `packages/ui-shared`).
 - **Frontend:** Vue 3, TypeScript, Pinia, Axios, Vuetify.
 - **Backend:** NestJS (Modular Architecture).
 - **Database:** PostgreSQL (Dockerized).
 - **ORM:** **MikroORM** (using JSONB columns for flexible session state).
 - **Logic:** `json-logic-js`.
 - **AI Layer:** `@langchain/openai` (Configurable for Scaleway/OpenAI/Ollama).
+- **Shared Packages:**
+    - `@conversational-data-engine/types`: Shared TypeScript/Zod type definitions for blueprints.
+    - `@conversational-data-engine/ui-shared`: Shared Vuetify theme configuration and UI utilities.
 
 ### 4.2 Data Flow (The Coordinator Loop)
 1. **Config:** Admin defines `service.json` (Blueprint).
@@ -118,3 +121,10 @@ The following stories have been defined and/or implemented to validate the archi
 - **Story 9: The Coordinator.**
     - REST API (`POST /chat`).
     - Frontend Axios + Pinia integration.
+- **Story 10: Blueprint Editor.**
+    - Visual UI-based blueprint editor with Material Design 3.
+    - Two-panel layout: Form editor (left) + Live JSON preview (right).
+    - Components for metadata, fields, plugins, and hooks configuration.
+    - Import/export functionality with Zod validation.
+    - Template system for quick-start blueprints.
+    - Shared packages for type safety and consistent theming.
