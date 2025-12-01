@@ -80,6 +80,25 @@ export class PromptService implements OnModuleInit {
   }
 
   /**
+   * Reseed all prompts from the default constants into the database.
+   * This will update existing prompts and create new ones.
+   * After reseeding, prompts are automatically reloaded into memory.
+   * @returns The number of prompts reseeded
+   */
+  async reseedPrompts(): Promise<number> {
+    this.logger.log('Reseeding prompts from default constants...');
+
+    const fork = this.em.fork();
+    await this.seedDefaultPrompts(fork);
+
+    // Reload prompts into cache after reseeding
+    const count = await this.reloadPrompts();
+
+    this.logger.log('Prompts reseeded and reloaded successfully.');
+    return count;
+  }
+
+  /**
    * Load prompts into the in-memory cache.
    * @param prompts Array of Prompt entities
    */
@@ -108,17 +127,27 @@ export class PromptService implements OnModuleInit {
   }
 
   /**
-   * Seed default prompts into the database for development environment.
-   * These are the current hardcoded prompts from the existing services.
+   * Seed default prompts into the database.
+   * This will update existing prompts with matching keys or create new ones.
    * @param em EntityManager instance to use for seeding
    */
   private async seedDefaultPrompts(em: EntityManager) {
     for (const promptData of DEFAULT_PROMPTS) {
-      const prompt = new Prompt();
-      prompt.key = promptData.key;
-      prompt.value = promptData.value;
-      em.persist(prompt);
-      this.logger.debug(`Seeding prompt: ${promptData.key}`);
+      // Find existing prompt or create new one
+      let prompt = await em.findOne(Prompt, { key: promptData.key });
+
+      if (prompt) {
+        // Update existing prompt
+        prompt.value = promptData.value;
+        this.logger.debug(`Updating prompt: ${promptData.key}`);
+      } else {
+        // Create new prompt
+        prompt = new Prompt();
+        prompt.key = promptData.key;
+        prompt.value = promptData.value;
+        em.persist(prompt);
+        this.logger.debug(`Creating prompt: ${promptData.key}`);
+      }
     }
 
     await em.flush();

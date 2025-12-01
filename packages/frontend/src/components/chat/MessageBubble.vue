@@ -27,13 +27,14 @@ import MarkdownText from '../common/MarkdownText.vue'
 interface Props {
   text: string
   isUser: boolean
-  timestamp: Date
+  timestamp: Date | string
 }
 
 const props = defineProps<Props>()
 
 const formattedTimestamp = computed(() => {
-  return props.timestamp.toLocaleTimeString('en-US', {
+  const date = typeof props.timestamp === 'string' ? new Date(props.timestamp) : props.timestamp
+  return date.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit'
   })

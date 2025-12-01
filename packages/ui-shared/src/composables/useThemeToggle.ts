@@ -1,39 +1,37 @@
-import { ref, onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useTheme } from 'vuetify';
 
 export type ThemeName = 'light' | 'dark';
 
 /**
  * Composable for managing theme state with localStorage persistence
+ * Uses Vuetify 3's modern theme API
  */
 export function useThemeToggle() {
   const theme = useTheme();
-  const currentTheme = ref<ThemeName>('light');
+  
+  // Current theme name - computed from Vuetify's internal state
+  const currentTheme = computed(() => theme.name.value as ThemeName);
 
+  // Load saved theme preference on mount
   onMounted(() => {
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
-      theme.global.name.value = savedTheme;
-      currentTheme.value = savedTheme;
+    if (savedTheme === 'light' || savedTheme === 'dark') {
+      theme.change(savedTheme);
     }
   });
 
+  /**
+   * Toggle between light and dark themes
+   */
   function toggleTheme() {
-    const newTheme: ThemeName = theme.global.name.value === 'dark' ? 'light' : 'dark';
-    theme.global.name.value = newTheme;
-    currentTheme.value = newTheme;
+    theme.toggle();
+    const newTheme: ThemeName = theme.current.value.dark ? 'dark' : 'light';
     localStorage.setItem('theme', newTheme);
-  }
-
-  function setTheme(themeName: ThemeName) {
-    theme.global.name.value = themeName;
-    currentTheme.value = themeName;
-    localStorage.setItem('theme', themeName);
   }
 
   return {
     currentTheme,
     toggleTheme,
-    setTheme,
   };
 }

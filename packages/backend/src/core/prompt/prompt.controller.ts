@@ -13,4 +13,13 @@ export class PromptController {
       count,
     };
   }
+
+  @Post('reseed')
+  async reseed(): Promise<{ message: string; count: number }> {
+    const count = await this.promptService.reseedPrompts();
+    return {
+      message: 'Prompts reseeded and reloaded successfully',
+      count,
+    };
+  }
 }

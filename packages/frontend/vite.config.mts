@@ -15,8 +15,12 @@ export default defineConfig({
       template: { transformAssetUrls },
     }),
     // https://github.com/vuetifyjs/vuetify-loader/tree/master/packages/vite-plugin#readme
-    Vuetify(),
-    Components(),
+    Vuetify({
+      autoImport: true,
+    }),
+    Components({
+      dts: 'src/components.d.ts',
+    }),
     Fonts({
       fontsource: {
         families: [
@@ -30,7 +34,9 @@ export default defineConfig({
     }),
   ],
   optimizeDeps: {
-    exclude: ['vuetify'],
+    exclude: [
+      '@conversational-data-engine/types',
+    ],
   },
   define: { 'process.env': {} },
   resolve: {

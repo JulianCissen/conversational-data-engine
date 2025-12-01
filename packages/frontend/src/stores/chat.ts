@@ -6,13 +6,13 @@ import router from '@/router'
 export interface Message {
   role: 'user' | 'system'
   content: string
-  timestamp: Date
+  timestamp: Date | string
 }
 
 export interface Conversation {
   id: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt: Date | string
+  updatedAt: Date | string
   data: Record<string, any>
   status: 'COLLECTING' | 'COMPLETED'
   currentFieldId?: string
@@ -120,11 +120,14 @@ export const useChatStore = defineStore('chat', () => {
 
   async function fetchWelcomeMessage(): Promise<string> {
     try {
+      isLoading.value = true
       const response = await axios.get<{ message: string }>(`${API_URL}/conversation/welcome-message`)
       return response.data.message
     } catch (error) {
       console.error('Error fetching welcome message:', error)
       return 'Welcome! How can I assist you today?'
+    } finally {
+      isLoading.value = false
     }
   }
 
@@ -134,7 +137,11 @@ export const useChatStore = defineStore('chat', () => {
       const response = await axios.get<Conversation>(`${API_URL}/conversation/${id}`)
       
       conversationId.value = response.data.id
-      messages.value = response.data.messages
+      // Convert timestamp strings to Date objects
+      messages.value = response.data.messages.map(msg => ({
+        ...msg,
+        timestamp: typeof msg.timestamp === 'string' ? new Date(msg.timestamp) : msg.timestamp
+      }))
       currentFormData.value = response.data.data
     } catch (error) {
       console.error('Error loading conversation:', error)

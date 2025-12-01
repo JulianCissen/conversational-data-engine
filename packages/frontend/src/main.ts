@@ -14,6 +14,8 @@ import App from './App.vue'
 import { createApp } from 'vue'
 
 // Styles
+import '@mdi/font/css/materialdesignicons.css'
+import 'vuetify/styles'
 import 'unfonts.css'
 
 const app = createApp(App)

@@ -69,19 +69,19 @@ Please write a brief message (1-2 sentences) in the language with ISO code "{{la
     key: PROMPT_KEYS.PRESENTER_WELCOME,
     value: `You are a helpful assistant. Generate a friendly welcome message for a new user.
 
-Welcome the user and present them with the available services:
+Welcome the user and present them with the available services using this EXACT list format:
 {{serviceList}}
 
-Be warm and professional. Ask which service they would like to use. Keep it brief (2-3 sentences).`,
+Be warm and professional. Ask which service they would like to use. Keep it brief (2-3 sentences). IMPORTANT: Preserve the list format with dashes (-) exactly as shown above.`,
   },
   {
     key: PROMPT_KEYS.PRESENTER_SERVICE_LIST,
     value: `You are a helpful assistant. The user has asked what services are available.
 
-Here are the available services:
+Here are the available services (use this EXACT format):
 {{serviceList}}
 
-Present this list to the user in a natural, helpful way and ask which service they would like to use. Be conversational and friendly.`,
+Present this list to the user in a natural, helpful way and ask which service they would like to use. Be conversational and friendly. IMPORTANT: Preserve the list format with dashes (-) exactly as shown above.`,
   },
   {
     key: PROMPT_KEYS.PRESENTER_UNCLEAR_SELECTION,

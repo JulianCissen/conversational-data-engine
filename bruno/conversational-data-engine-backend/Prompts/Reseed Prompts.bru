@@ -1,0 +1,22 @@
+meta {
+  name: Reseed Prompts
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:3100/prompts/reseed
+  body: none
+  auth: none
+}
+
+docs {
+  Reseeds all prompts from the default constants (prompt.constants.ts) into the database.
+  This will update existing prompts with the latest values from the code and create any new prompts.
+  After reseeding, prompts are automatically reloaded into memory.
+  
+  This is useful when:
+  - You've updated prompt templates in the code
+  - You want to reset prompts to their default values
+  - You need to sync the database with the latest prompt definitions
+}

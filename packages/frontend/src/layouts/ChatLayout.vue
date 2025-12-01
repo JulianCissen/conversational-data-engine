@@ -73,8 +73,8 @@
         </template>
         <v-list>
           <v-list-item
-            :prepend-icon="theme.global.name.value === 'dark' ? 'mdi-white-balance-sunny' : 'mdi-weather-night'"
-            :title="theme.global.name.value === 'dark' ? 'Light Mode' : 'Dark Mode'"
+            :prepend-icon="currentTheme === 'dark' ? 'mdi-white-balance-sunny' : 'mdi-weather-night'"
+            :title="currentTheme === 'dark' ? 'Light Mode' : 'Dark Mode'"
             @click="toggleTheme"
           ></v-list-item>
         </v-list>
@@ -138,7 +138,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useTheme } from 'vuetify'
+import { useThemeToggle } from '@conversational-data-engine/ui-shared'
 import { useChatStore } from '@/stores/chat'
 import type { Conversation } from '@/stores/chat'
 
@@ -149,15 +149,9 @@ const now = ref(new Date())
 
 const chatStore = useChatStore()
 const router = useRouter()
-const theme = useTheme()
+const { currentTheme, toggleTheme } = useThemeToggle()
 
 let timer: number
-
-// Load theme preference from localStorage
-const savedTheme = localStorage.getItem('theme')
-if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
-  theme.global.name.value = savedTheme
-}
 
 const formattedData = computed(() => {
   return JSON.stringify(chatStore.currentFormData, null, 2)
@@ -177,12 +171,6 @@ onUnmounted(() => {
     clearInterval(timer)
   }
 })
-
-function toggleTheme() {
-  const newTheme = theme.global.name.value === 'dark' ? 'light' : 'dark'
-  theme.global.name.value = newTheme
-  localStorage.setItem('theme', newTheme)
-}
 
 function handleNewChat() {
   // Clear the conversation state before navigating
@@ -209,8 +197,8 @@ function getConversationTitle(conversation: Conversation): string {
   return 'New Chat'
 }
 
-function formatDate(date: Date): string {
-  const d = new Date(date)
+function formatDate(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date
   const current = now.value // Reactive dependency
   const diffMs = current.getTime() - d.getTime()
   const diffMins = Math.floor(diffMs / 60000)

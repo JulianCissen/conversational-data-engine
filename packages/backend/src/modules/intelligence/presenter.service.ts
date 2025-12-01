@@ -133,7 +133,7 @@ export class PresenterService {
     languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
     history: LlmMessage[] = [],
   ): Promise<string> {
-    const serviceList = services.map((s) => `• ${s.name} (${s.id})`).join('\n');
+    const serviceList = services.map((s) => `- ${s.name} (${s.id})`).join('\n');
 
     return this.generateResponse(
       PROMPT_KEYS.PRESENTER_WELCOME,
@@ -157,7 +157,7 @@ export class PresenterService {
     languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
     history: LlmMessage[] = [],
   ): Promise<string> {
-    const serviceList = services.map((s) => `• ${s.name} (${s.id})`).join('\n');
+    const serviceList = services.map((s) => `- ${s.name} (${s.id})`).join('\n');
 
     return this.generateResponse(
       PROMPT_KEYS.PRESENTER_SERVICE_LIST,
