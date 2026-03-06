@@ -41,6 +41,7 @@
     "@langchain/core": "^1.0.6",
     "@langchain/openai": "^1.1.2",
     "@mikro-orm/core": "^6.6.0",
+    "@mikro-orm/migrations": "^6.6.1",
     "@mikro-orm/nestjs": "^6.1.1",
     "@mikro-orm/postgresql": "^6.6.0",
     "@mikro-orm/reflection": "^6.6.0",
@@ -92,7 +93,20 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": ["ts-jest", {
+        "tsconfig": {
+          "module": "CommonJS",
+          "moduleResolution": "node",
+          "resolvePackageJsonExports": false,
+          "allowJs": true
+        }
+      }]
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(p-retry|is-network-error)/)"
+    ],
+    "moduleNameMapper": {
+      "^@conversational-data-engine/types$": "<rootDir>/../../types/src/blueprint.ts"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

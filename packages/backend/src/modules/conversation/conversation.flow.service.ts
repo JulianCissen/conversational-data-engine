@@ -4,7 +4,10 @@ import { LlmMessage } from '../../core/llm/llm.types';
 import { WorkflowService } from '../workflow/workflow.service';
 import { InterpreterService } from '../intelligence/interpreter.service';
 import { PresenterService } from '../intelligence/presenter.service';
-import { ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
+import {
+  ArrayFieldDefinition,
+  ServiceBlueprint,
+} from '../blueprint/interfaces/blueprint.interface';
 import { BlueprintService } from '../blueprint/blueprint.service';
 import { ConversationService } from './conversation.service';
 import { ConversationResponse, ConversationState } from './conversation.types';
@@ -12,6 +15,7 @@ import { ConversationStateMachine } from './conversation.state-machine';
 import { PluginOrchestrator } from './plugin.orchestrator';
 import { LanguageViolationHandler } from './language-violation.handler';
 import { PluginManagerService } from '../../core/plugin/plugin.service';
+import { ArrayCollectionService } from './array-collection.service';
 
 /**
  * ConversationFlowService
@@ -36,6 +40,7 @@ export class ConversationFlowService {
     private readonly presenterService: PresenterService,
     private readonly blueprintService: BlueprintService,
     pluginManagerService: PluginManagerService,
+    private readonly arrayCollectionService: ArrayCollectionService,
   ) {
     this.stateMachine = new ConversationStateMachine();
     this.pluginOrchestrator = new PluginOrchestrator(pluginManagerService);
@@ -171,14 +176,11 @@ export class ConversationFlowService {
     );
 
     // Ask first question
-    const field = this.findField(blueprint, nextStep.nextFieldId);
-    const questionText = await this.presenterService.generateQuestion(
-      field,
-      blueprint.languageConfig,
-      this.getHistory(conversation),
+    return await this.askNextQuestion(
+      conversation,
+      blueprint,
+      nextStep.nextFieldId,
     );
-
-    return this.respondAndPersist(conversation, questionText, false);
   }
 
   // ========================================
@@ -221,6 +223,15 @@ export class ConversationFlowService {
     blueprint: ServiceBlueprint,
     currentField: ServiceBlueprint['fields'][number],
   ): Promise<ConversationResponse> {
+    // Early return for array fields — delegate to ArrayCollectionService
+    if (currentField.type === 'array') {
+      return await this.delegateToArrayService(
+        conversation,
+        blueprint,
+        currentField,
+      );
+    }
+
     const history = this.getHistory(conversation);
     const languageConfig = blueprint.languageConfig;
 
@@ -522,6 +533,17 @@ export class ConversationFlowService {
     nextFieldId: string,
   ): Promise<ConversationResponse> {
     const nextField = this.findField(blueprint, nextFieldId);
+
+    // NEW: Array fields generate their opening question via ArrayCollectionService
+    if (nextField.type === 'array') {
+      return await this.delegateToArrayService(
+        conversation,
+        blueprint,
+        nextField,
+      );
+    }
+
+    // Existing scalar path unchanged
     const questionText = await this.presenterService.generateQuestion(
       nextField,
       blueprint.languageConfig,
@@ -597,6 +619,31 @@ export class ConversationFlowService {
       conversation,
       blueprint,
     );
+  }
+
+  // ========================================
+  // Array Field Delegation
+  // ========================================
+
+  /**
+   * Delegates processing of an array-type field to ArrayCollectionService.
+   * On FIELD_COMPLETE, progresses to the next step in the workflow.
+   * On CONTINUE, returns the response from ArrayCollectionService directly.
+   */
+  private async delegateToArrayService(
+    conversation: Conversation,
+    blueprint: ServiceBlueprint,
+    currentField: ArrayFieldDefinition,
+  ): Promise<ConversationResponse> {
+    const result = await this.arrayCollectionService.handleArrayFieldTurn(
+      conversation,
+      blueprint,
+      currentField,
+    );
+    if (result.outcome === 'FIELD_COMPLETE') {
+      return await this.progressToNextStep(conversation, blueprint);
+    }
+    return result.response;
   }
 
   // ========================================

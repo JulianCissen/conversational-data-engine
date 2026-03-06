@@ -42,6 +42,30 @@ export class ValidationService {
   }
 
   /**
+   * Validate a value against an arbitrary JSON Schema without requiring a FieldDefinition.
+   * Used by ArrayCollectionService for per-item validation during the COLLECTING phase.
+   * @param value The value to validate
+   * @param schema The JSON Schema to validate against
+   * @returns true if valid, false otherwise
+   */
+  public validateAgainstSchema(value: unknown, schema: JsonSchema): boolean {
+    try {
+      const zodSchema = this.getOrCreateZodSchema(schema);
+      zodSchema.parse(value);
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        this.logger.debug(
+          `[validateAgainstSchema] validation failed: ${error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')}`,
+        );
+      } else {
+        this.logger.error(`[validateAgainstSchema] Unexpected error:`, error);
+      }
+      return false;
+    }
+  }
+
+  /**
    * Get or create a Zod schema from JSON Schema, with caching.
    * Cache key is based on the JSON Schema content hash to handle cases where
    * multiple services use the same field ID with different validation rules.

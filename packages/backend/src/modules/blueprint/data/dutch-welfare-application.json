@@ -40,22 +40,42 @@
       }
     },
     {
-      "id": "income_amount",
-      "type": "number",
-      "questionTemplate": "Wat is uw maandelijkse inkomen in euro's?",
-      "aiContext": "Als de aanvrager inkomen heeft, moeten we het exacte bedrag weten om de bijstandsuitkering te kunnen berekenen.",
-      "validation": {
-        "type": "number",
-        "minimum": 0,
-        "maximum": 10000,
-        "description": "Maandelijks inkomen in euro's"
-      },
+      "id": "income_list",
+      "type": "array",
+      "questionTemplate": "Kunt u uw inkomstenbronnen opgeven? Noem voor elke bron een omschrijving en het netto maandbedrag.",
+      "aiContext": "We hebben een overzicht nodig van alle inkomstenbronnen van de aanvrager, inclusief een beschrijving en het netto maandelijkse bedrag per bron. Dit is nodig om het recht op bijstand en de hoogte van de uitkering te bepalen.",
       "condition": {
         "==": [
           { "var": "has_income" },
           true
         ]
-      }
+      },
+      "validation": {
+        "type": "array",
+        "minItems": 1
+      },
+      "items": [
+        {
+          "id": "description",
+          "type": "string",
+          "questionTemplate": "Wat is de omschrijving van deze inkomstenbron?",
+          "aiContext": "Een korte omschrijving van de inkomstenbron, bijvoorbeeld 'parttime werk', 'huurinkomsten' of 'alimentatie'.",
+          "validation": {
+            "type": "string"
+          }
+        },
+        {
+          "id": "net_income",
+          "type": "number",
+          "questionTemplate": "Wat is het netto maandbedrag van deze inkomstenbron in euro's?",
+          "aiContext": "Het netto maandelijkse bedrag in euro's dat de aanvrager ontvangt uit deze inkomstenbron. Het maximale bedrag is 99999 euro per maand.",
+          "validation": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 99999
+          }
+        }
+      ]
     },
     {
       "id": "reason",

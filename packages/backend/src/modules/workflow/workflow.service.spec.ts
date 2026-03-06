@@ -1,6 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkflowService } from './workflow.service';
-import { ServiceBlueprint } from '../blueprint/interfaces/blueprint.interface';
+import {
+  ArrayFieldDefinition,
+  ServiceBlueprint,
+} from '../blueprint/interfaces/blueprint.interface';
 import { ValidationService } from '../../core/validation/validation.service';
 
 describe('WorkflowService', () => {
@@ -1307,6 +1310,105 @@ describe('WorkflowService', () => {
         nextFieldId: null,
         isComplete: true,
       });
+    });
+  });
+
+  describe('Array Field Support', () => {
+    let arrayBlueprint: ServiceBlueprint;
+
+    beforeEach(() => {
+      arrayBlueprint = {
+        id: 'array-test',
+        name: 'Array Test',
+        fields: [
+          {
+            id: 'scalar_field',
+            type: 'string',
+            questionTemplate: 'What is your name?',
+            aiContext: 'Collect name',
+            validation: {},
+          },
+          {
+            id: 'income_list',
+            type: 'array',
+            questionTemplate: 'List your income sources',
+            aiContext: 'Collect income sources',
+            items: [
+              {
+                id: 'description',
+                type: 'string',
+                questionTemplate: 'Description?',
+                aiContext: 'Description',
+                validation: {},
+              },
+              {
+                id: 'net_income',
+                type: 'number',
+                questionTemplate: 'Amount?',
+                aiContext: 'Amount',
+                validation: { type: 'number', maximum: 99999 },
+              },
+            ],
+            validation: { type: 'array', minItems: 1 },
+          },
+        ],
+        plugins: [],
+        hooks: {},
+      };
+    });
+
+    it('W-01: array field with no data is not satisfied — returned as next field', () => {
+      mockValidationService.validateValue.mockReturnValue(true);
+      const result = service.determineNextStep(arrayBlueprint, {
+        scalar_field: 'Alice',
+      });
+      expect(result.nextFieldId).toBe('income_list');
+      expect(result.isComplete).toBe(false);
+    });
+
+    it('W-02: array field with non-empty data is satisfied', () => {
+      mockValidationService.validateValue.mockReturnValue(true);
+      const data = {
+        scalar_field: 'Alice',
+        income_list: [{ description: 'Rent', net_income: 400 }],
+      };
+      const result = service.determineNextStep(arrayBlueprint, data);
+      expect(result.isComplete).toBe(true);
+      expect(result.nextFieldId).toBeNull();
+    });
+
+    it('W-03: array field with condition false is skipped', () => {
+      const conditionalBlueprint: ServiceBlueprint = {
+        ...arrayBlueprint,
+        fields: [
+          arrayBlueprint.fields[0],
+          {
+            ...(arrayBlueprint.fields[1] as ArrayFieldDefinition),
+            condition: { '===': [{ var: 'has_income' }, true] },
+          },
+        ],
+      };
+      mockValidationService.validateValue.mockReturnValue(true);
+      // has_income is false → income_list is skipped
+      const result = service.determineNextStep(conditionalBlueprint, {
+        scalar_field: 'Alice',
+        has_income: false,
+      });
+      expect(result.isComplete).toBe(true);
+    });
+
+    it('W-04: conversation complete when all array fields satisfied', () => {
+      mockValidationService.validateValue.mockReturnValue(true);
+      const data = {
+        scalar_field: 'Alice',
+        income_list: [
+          { description: 'Rent', net_income: 400 },
+          { description: 'Job', net_income: 1200 },
+        ],
+      };
+      const result = service.determineNextStep(arrayBlueprint, data);
+      expect(result.isComplete).toBe(true);
+      expect(result.nextFieldId).toBeNull();
     });
   });
 });

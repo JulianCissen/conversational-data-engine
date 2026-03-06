@@ -24,23 +24,30 @@ export const LanguageConfigSchema = z.object({
 export type LanguageConfig = z.infer<typeof LanguageConfigSchema>;
 
 /**
- * Supported scalar field types in the Service Blueprint.
- * Arrays and complex types are not yet supported.
+ * Supported field types in the Service Blueprint, including array for multi-value collection.
  */
-export type FieldType = 'string' | 'number' | 'boolean' | 'date';
+export type FieldType = 'string' | 'number' | 'boolean' | 'date' | 'array';
 
-export const FieldDefinitionSchema = z.object({
+/**
+ * Reusable JSON Schema validation schema — accepts any JSON object.
+ */
+export const JsonSchemaSchema = z.record(z.string(), z.any());
+
+/**
+ * ScalarFieldDefinitionSchema — the original single-value field definition (renamed from FieldDefinitionSchema).
+ */
+export const ScalarFieldDefinitionSchema = z.object({
   id: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'date']),
   questionTemplate: z.string(),
   aiContext: z.string(),
-  validation: z.record(z.string(), z.any()),
+  validation: JsonSchemaSchema,
   condition: z.any().optional(),
   verbatim: z.boolean().optional(),
 });
 
 /**
- * Defines a single field in the conversational flow.
+ * Defines a scalar (single-value) field in the conversational flow.
  *
  * @property id - Unique identifier for this field (e.g., "user_age", "transport_type").
  * @property type - The scalar data type this field should collect.
@@ -52,6 +59,72 @@ export const FieldDefinitionSchema = z.object({
  * @property verbatim - If true, the question must be asked exactly as written in questionTemplate.
  *   The AI can still generate conversational context, but the final question must match the blueprint text verbatim
  *   (important for legal/judicial compliance).
+ */
+export type ScalarFieldDefinition = z.infer<typeof ScalarFieldDefinitionSchema>;
+
+/**
+ * SubFieldDefinitionSchema — a simplified field definition used as a property within an array field's items.
+ */
+export const SubFieldDefinitionSchema = z.object({
+  id: z.string(),
+  type: z.enum(['string', 'number', 'boolean', 'date']),
+  questionTemplate: z.string(),
+  aiContext: z.string(),
+  validation: JsonSchemaSchema,
+});
+
+/**
+ * Defines a sub-field within an array field's item schema.
+ *
+ * @property id - Unique identifier for this sub-field (e.g., "description", "net_income").
+ * @property type - The scalar data type this sub-field should collect (`string`, `number`, `boolean`, or `date`).
+ * @property questionTemplate - Template string for asking the user for this sub-field's value.
+ * @property aiContext - Contextual explanation for the AI about this sub-field (required).
+ * @property validation - JSON Schema object defining validation rules for this sub-field.
+ */
+export type SubFieldDefinition = z.infer<typeof SubFieldDefinitionSchema>;
+
+/**
+ * ArrayFieldDefinitionSchema — a multi-value field that collects a list of structured items via multi-turn conversation.
+ */
+export const ArrayFieldDefinitionSchema = z.object({
+  id: z.string(),
+  type: z.literal('array'),
+  label: z.string().optional(),
+  questionTemplate: z.string(),
+  aiContext: z.string(),
+  validation: JsonSchemaSchema,
+  condition: z.any().optional(),
+  verbatim: z.boolean().optional(),
+  items: z.array(SubFieldDefinitionSchema).min(1),
+});
+
+/**
+ * Defines a multi-value array field in the conversational flow.
+ *
+ * @property id - Unique identifier for this field (e.g., "income_list").
+ * @property type - Always 'array' for this field type.
+ * @property label - Optional human-readable label for this field (additive; not required by spec §4.2 but harmless).
+ * @property questionTemplate - Template string that the AI uses to open the array collection loop.
+ * @property aiContext - Contextual explanation for the AI about why this field is needed (required per spec §4.2).
+ * @property validation - JSON Schema object defining validation rules for the collected array.
+ * @property condition - Optional JsonLogic condition that determines if this field should be shown.
+ * @property verbatim - If true, the opening question must be asked exactly as written in questionTemplate.
+ * @property items - Ordered list of sub-field definitions describing the properties of each array item.
+ */
+export type ArrayFieldDefinition = z.infer<typeof ArrayFieldDefinitionSchema>;
+
+/**
+ * FieldDefinitionSchema — discriminated union of ScalarFieldDefinitionSchema and ArrayFieldDefinitionSchema,
+ * keyed on the 'type' property. Use this schema to validate any field in a Service Blueprint.
+ */
+export const FieldDefinitionSchema = z.discriminatedUnion('type', [
+  ScalarFieldDefinitionSchema,
+  ArrayFieldDefinitionSchema,
+]);
+
+/**
+ * Defines a single field in the conversational flow — either a scalar field or an array collection field.
  */
 export type FieldDefinition = z.infer<typeof FieldDefinitionSchema>;
 

@@ -1,6 +1,7 @@
 import { Entity, PrimaryKey, Property, JsonType } from '@mikro-orm/core';
 import { BlueprintService } from '../blueprint/blueprint.service';
 import { LlmMessage } from '../../core/llm/llm.types';
+import { ArrayCollectionState } from './array-collection.types';
 
 /**
  * Message stored in conversation history.
@@ -49,6 +50,10 @@ export class Conversation {
   // Store the complete message history
   @Property({ type: JsonType })
   messages: Message[] = [];
+
+  // In-progress sub-state for array field collection; null when no array field is active
+  @Property({ type: JsonType, nullable: true })
+  arrayCollectionState: ArrayCollectionState | null = null;
 
   // Getter to retrieve the blueprint name dynamically
   get blueprintName(): string | undefined {

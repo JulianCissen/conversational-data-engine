@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  ArrayFieldDefinition,
   FieldDefinition,
   ServiceBlueprint,
 } from '../blueprint/interfaces/blueprint.interface';
@@ -92,6 +93,70 @@ export class PresenterService {
       {
         questionTemplate: field.questionTemplate,
         aiContext: field.aiContext,
+      },
+      languageConfig,
+      history,
+    );
+  }
+
+  /**
+   * Generate a targeted follow-up question for a missing sub-field of a partial array item.
+   * @param parentField The array field definition
+   * @param partialItem The partial item collected so far
+   * @param missingSubFieldIds IDs of sub-fields still missing
+   * @param languageConfig Optional language configuration
+   * @param history Conversation history for context
+   */
+  public async generateSubFieldFollowUp(
+    parentField: ArrayFieldDefinition,
+    partialItem: Record<string, any>,
+    missingSubFieldIds: string[],
+    languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
+    history: LlmMessage[] = [],
+  ): Promise<string> {
+    if (!missingSubFieldIds || missingSubFieldIds.length === 0) {
+      throw new Error(
+        'generateSubFieldFollowUp called with empty missingSubFieldIds',
+      );
+    }
+
+    const missingSubFieldDef = parentField.items.find(
+      (sf) => sf.id === missingSubFieldIds[0],
+    );
+
+    return this.generateResponse(
+      PROMPT_KEYS.ARRAY_SUBFIELD_FOLLOWUP,
+      {
+        parentFieldQuestion: parentField.questionTemplate,
+        partialItemJson: JSON.stringify(partialItem),
+        missingSubFieldQuestion:
+          missingSubFieldDef?.questionTemplate ?? missingSubFieldIds[0],
+        missingSubFieldContext: missingSubFieldDef?.aiContext ?? '',
+      },
+      languageConfig,
+      history,
+    );
+  }
+
+  /**
+   * Generate a confirmation question asking the user if they want to add more items.
+   * @param field The array field definition
+   * @param accumulatedItems Items collected so far
+   * @param languageConfig Optional language configuration
+   * @param history Conversation history for context
+   */
+  public async generateArrayConfirmationQuestion(
+    field: ArrayFieldDefinition,
+    accumulatedItems: Record<string, any>[],
+    languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
+    history: LlmMessage[] = [],
+  ): Promise<string> {
+    return this.generateResponse(
+      PROMPT_KEYS.ARRAY_CONFIRMATION_QUESTION,
+      {
+        fieldQuestion: field.questionTemplate,
+        itemCount: accumulatedItems.length,
+        itemsSummary: JSON.stringify(accumulatedItems),
       },
       languageConfig,
       history,

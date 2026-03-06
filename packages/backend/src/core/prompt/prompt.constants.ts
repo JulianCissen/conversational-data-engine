@@ -25,6 +25,12 @@ export const PROMPT_KEYS = {
   // Language enforcement prompts
   LANGUAGE_STRICT_AUGMENTATION: 'language.strict.augmentation',
   LANGUAGE_ADAPTIVE_AUGMENTATION: 'language.adaptive.augmentation',
+
+  // Array field collection prompts
+  ARRAY_ITEM_EXTRACTION: 'array.item.extraction',
+  ARRAY_SUBFIELD_FOLLOWUP: 'array.subfield.followup',
+  ARRAY_CONFIRMATION_QUESTION: 'array.confirmation.question',
+  ARRAY_CONFIRMATION_CLASSIFICATION: 'array.confirmation.classification',
 } as const;
 
 /**
@@ -133,5 +139,47 @@ Respond with ONLY one of: the service ID, "LIST_SERVICES", or "UNCLEAR" - nothin
   {
     key: PROMPT_KEYS.LANGUAGE_ADAPTIVE_AUGMENTATION,
     value: `LANGUAGE PREFERENCE: Please respond in {{defaultLanguage}} unless the user is clearly communicating in a different language. Adapt to the user's language naturally while defaulting to {{defaultLanguage}} for system messages and questions.`,
+  },
+  {
+    key: PROMPT_KEYS.ARRAY_ITEM_EXTRACTION,
+    value: `You are a structured data extraction engine. Read the user's most recent message and extract every item they mentioned for the following list:
+
+Field: "{{fieldQuestion}}"
+Context: "{{fieldContext}}"
+
+For each item the user mentions, extract all recognisable sub-field values.
+If a value is not mentioned or cannot be determined, output null for that sub-field.
+Do not invent, assume, or hallucinate values.
+Extract as many distinct items as the user mentions.
+Return an empty array if no items are identifiable.`,
+  },
+  {
+    key: PROMPT_KEYS.ARRAY_SUBFIELD_FOLLOWUP,
+    value: `You are a helpful assistant collecting information for a form list.
+
+The user is providing items for: "{{parentFieldQuestion}}"
+So far for one item, you have: {{partialItemJson}}
+You still need: "{{missingSubFieldQuestion}}" ({{missingSubFieldContext}})
+
+Ask naturally and concisely for the missing information, referencing what was already provided so the user knows which item you are completing. Be conversational and brief.`,
+  },
+  {
+    key: PROMPT_KEYS.ARRAY_CONFIRMATION_QUESTION,
+    value: `You are a helpful assistant collecting a list of items for a form.
+
+The user has been providing items for: "{{fieldQuestion}}"
+So far {{itemCount}} item(s) have been collected: {{itemsSummary}}
+
+Briefly acknowledge what was collected and ask the user whether they want to add more items or are finished. Be concise and friendly.`,
+  },
+  {
+    key: PROMPT_KEYS.ARRAY_CONFIRMATION_CLASSIFICATION,
+    value: `You are a classifier. The user was asked whether they want to add more items to their "{{fieldQuestion}}" list or are done providing items.
+
+Classify their response as:
+- DONE: The user indicates they have no more items to add (e.g. "that is all", "done", "no more", "that's it").
+- ADD_MORE: The user wants to continue providing items (e.g. "yes, one more", "I also have...", "and also...").
+
+When ambiguous, prefer ADD_MORE to avoid premature termination.`,
   },
 ];

@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  ArrayFieldDefinition,
   FieldDefinition,
   ServiceBlueprint,
+  SubFieldDefinition,
 } from '../blueprint/interfaces/blueprint.interface';
 import { LlmMessage } from '../../core/llm/llm.types';
 import { PromptExecutionService } from './prompt-execution.service';
@@ -70,7 +72,7 @@ export class InterpreterService {
    * @throws LanguageViolationException if strict mode is enabled and user violates language rules
    */
   public async extractData(
-    fields: FieldDefinition[],
+    fields: Array<FieldDefinition | SubFieldDefinition>,
     languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
     history: LlmMessage[] = [],
   ): Promise<{
@@ -212,7 +214,9 @@ export class InterpreterService {
    * @param fields Array of field definitions from the blueprint
    * @returns Record of schema properties keyed by field ID
    */
-  private buildDataProperties(fields: FieldDefinition[]): Record<string, any> {
+  private buildDataProperties(
+    fields: Array<FieldDefinition | SubFieldDefinition>,
+  ): Record<string, any> {
     const dataProperties: Record<string, any> = {};
 
     for (const field of fields) {
@@ -247,7 +251,132 @@ export class InterpreterService {
   }
 
   /**
-   * Generic method to execute a structured LLM task.
+   * Extract array items from user's message for an array field.
+   * Builds a dynamic output schema from the field's sub-field definitions.
+   * Returns [] on malformed LLM response.
+   * @param field The array field definition
+   * @param languageConfig Optional language configuration
+   * @param history Conversation history including the current user message
+   */
+  public async extractArrayItems(
+    field: ArrayFieldDefinition,
+    languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
+    history: LlmMessage[] = [],
+  ): Promise<
+    Array<{
+      values: Record<string, any>;
+      missingSubFields: string[];
+    }>
+  > {
+    // Build dynamic output schema: { extracted_items: { type:'array', items:{ type:'object', properties: { <subFieldId>: { ...subField.validation, nullable:true } } } } }
+    const itemProperties: Record<string, any> = {};
+    for (const subField of field.items) {
+      itemProperties[subField.id] = {
+        ...subField.validation,
+        description: `Question: ${subField.questionTemplate} | Context: ${subField.aiContext}`,
+        nullable: true,
+      };
+    }
+
+    const schemaProperties = {
+      extracted_items: {
+        type: 'array',
+        description: 'All items extracted from the user message',
+        items: {
+          type: 'object',
+          properties: itemProperties,
+        },
+      },
+    };
+
+    try {
+      const result = await this.executeStructuredTask({
+        systemPromptKey: PROMPT_KEYS.ARRAY_ITEM_EXTRACTION,
+        context: {
+          fieldQuestion: field.questionTemplate,
+          fieldContext: field.aiContext,
+        },
+        schema: {
+          properties: schemaProperties,
+          required: ['extracted_items'],
+        },
+        history,
+        languageConfig,
+      });
+
+      const rawItems = result.extracted_items;
+      if (!Array.isArray(rawItems)) {
+        return [];
+      }
+
+      return rawItems.map((item: Record<string, any>) => {
+        const missingSubFields = field.items
+          .map((sf) => sf.id)
+          .filter((id) => item[id] == null);
+        // Strip null entries from values
+        const values: Record<string, any> = {};
+        for (const [k, v] of Object.entries(item)) {
+          if (v != null) values[k] = v;
+        }
+        return { values, missingSubFields };
+      });
+    } catch (error) {
+      this.logger.error('[extractArrayItems] Failed to extract items:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Classify the user's response to the "are you done?" confirmation question.
+   * Defaults to ADD_MORE on malformed response (conservative safe default).
+   * @param field The array field definition
+   * @param languageConfig Optional language configuration
+   * @param history Conversation history including the current user message
+   */
+  public async classifyArrayConfirmation(
+    field: ArrayFieldDefinition,
+    languageConfig?: { mode: 'adaptive' | 'strict'; defaultLanguage: string },
+    history: LlmMessage[] = [],
+  ): Promise<'DONE' | 'ADD_MORE'> {
+    try {
+      const result = await this.executeStructuredTask({
+        systemPromptKey: PROMPT_KEYS.ARRAY_CONFIRMATION_CLASSIFICATION,
+        context: {
+          fieldQuestion: field.questionTemplate,
+        },
+        schema: {
+          properties: {
+            confirmation: {
+              type: 'string',
+              enum: ['DONE', 'ADD_MORE'],
+              description:
+                'Whether the user is done providing items or wants to add more',
+            },
+          },
+          required: ['confirmation'],
+        },
+        history,
+        languageConfig,
+      });
+
+      const confirmation = result.confirmation;
+      if (confirmation === 'DONE' || confirmation === 'ADD_MORE') {
+        return confirmation;
+      }
+      this.logger.warn(
+        '[classifyArrayConfirmation] Unexpected confirmation value, defaulting to ADD_MORE',
+      );
+      return 'ADD_MORE';
+    } catch (error) {
+      this.logger.warn(
+        '[classifyArrayConfirmation] Failed to classify, defaulting to ADD_MORE:',
+        error,
+      );
+      return 'ADD_MORE';
+    }
+  }
+
+  /**
    * Handles building the system message, executing the chat, and checking for language violations.
    * @param params - Task execution parameters
    * @param params.systemPromptKey - The prompt key for the system message

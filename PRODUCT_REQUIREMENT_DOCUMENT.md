@@ -37,7 +37,7 @@ We are building an open-source, configuration-driven Conversational Form Platfor
 - **Logic Engine:** Uses **JsonLogic** (standardized JSON-based logic) to evaluate conditions.
 - **Schema Support:** Uses **JSON Schema** for defining fields and validation rules.
 - **Dependency Logic:** Support conditional visibility (e.g., Show Field X only if Field Y > 18).
-- *Note: Complex Input Lists (Looping) are out of scope for the initial MVP.*
+- **Array Field Support:** Blueprint fields with `type: 'array'` are handled by the dedicated ArrayCollectionService via a Multi-Turn Conversational Collection loop (see §3.6).
 
 ### 3.3 The Lifecycle System
 - **Plugin Architecture:** A Node.js-based plugin system to handle external integrations.
@@ -61,6 +61,18 @@ We are building an open-source, configuration-driven Conversational Form Platfor
     - *Strict:* Enforces communication in a specific language only (e.g., legal/judicial compliance).
 - **ISO-639 Compliance:** All language codes use ISO-639 format (e.g., `en-GB`, `nl-NL`, `de-DE`, `fr-FR`).
 - **Detection:** System tracks the detected language for each conversation and can enforce language violations in strict mode.
+
+### 3.6 Complex Input Types
+
+#### Multi-Turn Conversational Collection
+
+When a Blueprint field has `type: 'array'`, the engine delegates to the **ArrayCollectionService** instead of the standard single-field extraction path. The service drives a two-phase loop entirely through natural conversation:
+
+- **COLLECTING phase:** The user is invited to provide one item at a time. For each user turn, `ArrayCollectionService` calls `InterpreterService.extractArrayItems()` to parse the user's message against the sub-field schema. Fully extracted items are appended to `accumulatedItems`. If an item is only partially provided (one or more sub-fields missing), the service stores it in `pendingPartialItem` and calls `PresenterService.generateSubFieldFollowUp()` to ask a targeted follow-up question for each missing sub-field — without switching phase. If nothing is extracted the opening question is re-asked.
+
+- **CONFIRMING phase:** Once at least one complete item exists, the service transitions to CONFIRMING and calls `PresenterService.generateArrayConfirmationQuestion()` to ask the user whether they have finished or want to add another item. `InterpreterService.classifyArrayConfirmation()` classifies the response as `DONE` or `ADD_MORE`. On `ADD_MORE` the phase resets to COLLECTING while preserving `accumulatedItems`. On `DONE` the accumulated items are written to `conversation.data[fieldId]`, `arrayCollectionState` is cleared, and `ArrayCollectionService` returns a `FIELD_COMPLETE` sentinel to `ConversationFlowService` so the main orchestration loop can advance to the next field.
+
+This design keeps the array-collection concern fully encapsulated in `ArrayCollectionService`. The frontend, controller DTO, and session completion detection require no changes.
 
 ## 4. Technical Architecture
 
@@ -128,3 +140,8 @@ The following stories have been defined and/or implemented to validate the archi
     - Import/export functionality with Zod validation.
     - Template system for quick-start blueprints.
     - Shared packages for type safety and consistent theming.
+- **Story 11: Complex Input Types (Multi-Turn Array Collection).**
+    - `ArrayCollectionService` introduced to handle Blueprint fields of `type: 'array'`.
+    - Implements the COLLECTING / CONFIRMING two-phase loop: extracts array items turn-by-turn via `InterpreterService.extractArrayItems()`, resolves partial items through targeted sub-field follow-ups, and confirms completion via `InterpreterService.classifyArrayConfirmation()`.
+    - On confirmation, accumulated items are stored in `conversation.data[fieldId]` and `ArrayCollectionService` returns a `FIELD_COMPLETE` sentinel to `ConversationFlowService`.
+    - `ConversationFlowService` routes any `type: 'array'` field turn through `ArrayCollectionService` with no changes to the frontend or controller DTOs.
